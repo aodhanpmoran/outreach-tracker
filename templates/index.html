@@ -1,0 +1,1702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Outreach Tracker</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .btn:hover { background: #1d4ed8; }
+        .btn-secondary { background: #374151; }
+        .btn-secondary:hover { background: #4b5563; }
+        .btn-danger { background: #dc2626; }
+        .btn-danger:hover { background: #b91c1c; }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            margin-top: 4px;
+        }
+
+        .stat-value.blue { color: #3b82f6; }
+        .stat-value.yellow { color: #eab308; }
+        .stat-value.purple { color: #a855f7; }
+        .stat-value.green { color: #22c55e; }
+        .stat-value.red { color: #ef4444; }
+
+        .pipeline {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 12px;
+            margin-bottom: 32px;
+        }
+
+        @media (max-width: 1200px) { .pipeline { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 768px) { .pipeline { grid-template-columns: repeat(2, 1fr); } }
+
+        .column {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            min-height: 400px;
+        }
+
+        .column-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #2a2a2a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .column-title {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .column-count {
+            background: #2a2a2a;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+        }
+
+        .column-body {
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .prospect-card {
+            background: #252525;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .prospect-card:hover {
+            border-color: #444;
+            transform: translateY(-1px);
+        }
+
+        .prospect-name { font-weight: 600; margin-bottom: 4px; }
+        .prospect-company { font-size: 13px; color: #888; }
+        .prospect-followup { font-size: 11px; color: #f59e0b; margin-top: 8px; }
+        .prospect-followup.overdue { color: #ef4444; }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .modal {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal h2 { margin-bottom: 20px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #aaa;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 12px;
+            background: #252525;
+            border: 1px solid #333;
+            border-radius: 6px;
+            color: #e0e0e0;
+            font-size: 14px;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #2563eb;
+        }
+
+        .form-group textarea { min-height: 80px; resize: vertical; }
+        .form-actions { display: flex; gap: 12px; margin-top: 24px; }
+        .form-actions .btn { flex: 1; }
+
+        .status-new { border-left: 3px solid #6b7280; }
+        .status-contacted { border-left: 3px solid #3b82f6; }
+        .status-responded { border-left: 3px solid #8b5cf6; }
+        .status-call_scheduled { border-left: 3px solid #f59e0b; }
+        .status-closed { border-left: 3px solid #22c55e; }
+        .status-lost { border-left: 3px solid #ef4444; }
+
+        .quick-actions { display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap; }
+        .quick-btn {
+            font-size: 10px;
+            padding: 4px 8px;
+            background: #333;
+            border: none;
+            border-radius: 4px;
+            color: #aaa;
+            cursor: pointer;
+        }
+        .quick-btn:hover { background: #444; color: #fff; }
+
+        .empty-state { text-align: center; padding: 40px 20px; color: #666; }
+        .empty-state p { margin-bottom: 16px; }
+
+        .goal-section {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+
+        .goal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .goal-progress {
+            height: 8px;
+            background: #2a2a2a;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .goal-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #2563eb, #22c55e);
+            transition: width 0.3s;
+        }
+
+        .goal-text { font-size: 13px; color: #888; margin-top: 8px; }
+
+        .prospect-card.dragging { opacity: 0.5; transform: rotate(2deg); }
+        .column-body.drag-over {
+            background: rgba(37, 99, 235, 0.1);
+            border: 2px dashed #2563eb;
+            border-radius: 6px;
+        }
+        .prospect-card[draggable="true"] { cursor: grab; }
+        .prospect-card[draggable="true"]:active { cursor: grabbing; }
+
+        .header-actions { display: flex; gap: 12px; align-items: center; }
+        .view-toggle { display: flex; background: #1a1a1a; border-radius: 6px; padding: 4px; }
+        .view-toggle button {
+            background: transparent;
+            border: none;
+            color: #888;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .view-toggle button:hover { color: #e0e0e0; }
+        .view-toggle button.active { background: #2563eb; color: white; }
+
+        .list-view { display: none; }
+        .list-view.active { display: block; }
+        .pipeline.hidden { display: none; }
+
+        .prospects-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #1a1a1a;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .prospects-table th,
+        .prospects-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #2a2a2a;
+        }
+
+        .prospects-table th {
+            background: #252525;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #888;
+        }
+
+        .prospects-table tr:hover { background: #252525; cursor: pointer; }
+        .prospects-table tr:last-child td { border-bottom: none; }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .status-badge.new { background: #374151; color: #9ca3af; }
+        .status-badge.contacted { background: #1e3a5f; color: #3b82f6; }
+        .status-badge.responded { background: #3b1f5c; color: #a855f7; }
+        .status-badge.call_scheduled { background: #4a3419; color: #f59e0b; }
+        .status-badge.closed { background: #14532d; color: #22c55e; }
+        .status-badge.lost { background: #450a0a; color: #ef4444; }
+
+        .table-empty { text-align: center; padding: 40px; color: #666; }
+
+        /* Pomodoro Timer */
+        .pomodoro {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            padding: 16px 24px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .pomo-timer {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .pomo-display {
+            font-size: 48px;
+            font-weight: 700;
+            font-family: 'SF Mono', 'Monaco', monospace;
+            min-width: 160px;
+        }
+
+        .pomo-display.work { color: #22c55e; }
+        .pomo-display.break { color: #f59e0b; }
+
+        .pomo-status {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #888;
+        }
+
+        .pomo-status.work { color: #22c55e; }
+        .pomo-status.break { color: #f59e0b; }
+
+        .pomo-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .pomo-btn {
+            background: #333;
+            border: none;
+            color: #e0e0e0;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .pomo-btn:hover { background: #444; }
+        .pomo-btn.primary { background: #22c55e; color: #000; }
+        .pomo-btn.primary:hover { background: #16a34a; }
+        .pomo-btn.primary.running { background: #ef4444; }
+        .pomo-btn.primary.running:hover { background: #dc2626; }
+
+        .pomo-stats {
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .pomo-sessions {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .pomo-sessions-label {
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+        }
+
+        /* Daily Tasks */
+        .daily-tasks {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+        }
+
+        .daily-tasks-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .daily-tasks-title {
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #888;
+        }
+
+        .daily-tasks-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .daily-task {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: #252525;
+            border-radius: 6px;
+            border: 1px solid #333;
+        }
+
+        .daily-task.completed {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: rgba(34, 197, 94, 0.3);
+        }
+
+        .daily-task-checkbox {
+            width: 24px;
+            height: 24px;
+            border: 2px solid #444;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .daily-task-checkbox:hover {
+            border-color: #22c55e;
+        }
+
+        .daily-task.completed .daily-task-checkbox {
+            background: #22c55e;
+            border-color: #22c55e;
+        }
+
+        .daily-task-checkbox::after {
+            content: '';
+            width: 10px;
+            height: 10px;
+            background: transparent;
+        }
+
+        .daily-task.completed .daily-task-checkbox::after {
+            content: '✓';
+            color: #000;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .daily-task-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #e0e0e0;
+            font-size: 16px;
+            outline: none;
+        }
+
+        .daily-task-input::placeholder {
+            color: #555;
+        }
+
+        .daily-task.completed .daily-task-input {
+            text-decoration: line-through;
+            color: #22c55e;
+        }
+
+        .daily-task-delete {
+            background: none;
+            border: none;
+            color: #555;
+            cursor: pointer;
+            padding: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .daily-task:hover .daily-task-delete {
+            opacity: 1;
+        }
+
+        .daily-task-delete:hover {
+            color: #ef4444;
+        }
+
+        .add-task-btn {
+            background: transparent;
+            border: 2px dashed #333;
+            color: #666;
+            padding: 12px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            width: 100%;
+            transition: all 0.2s;
+        }
+
+        .add-task-btn:hover {
+            border-color: #444;
+            color: #888;
+        }
+
+        /* Celebration overlay */
+        .celebration {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            flex-direction: column;
+        }
+
+        .celebration.active {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .celebration-content {
+            text-align: center;
+            animation: scaleIn 0.5s ease;
+        }
+
+        @keyframes scaleIn {
+            from { transform: scale(0.5); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .celebration-emoji {
+            font-size: 120px;
+            margin-bottom: 24px;
+            animation: bounce 0.6s ease infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .celebration-title {
+            font-size: 48px;
+            font-weight: 700;
+            color: #22c55e;
+            margin-bottom: 12px;
+        }
+
+        .celebration-subtitle {
+            font-size: 20px;
+            color: #888;
+            margin-bottom: 32px;
+        }
+
+        .celebration-btn {
+            background: #22c55e;
+            color: #000;
+            border: none;
+            padding: 16px 48px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .celebration-btn:hover {
+            background: #16a34a;
+        }
+
+        /* Confetti */
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            animation: confetti-fall 3s ease-out forwards;
+        }
+
+        @keyframes confetti-fall {
+            0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+        }
+
+        /* One Thing */
+        .one-thing {
+            background: linear-gradient(135deg, #1a1a1a 0%, #252525 100%);
+            border: 2px solid #333;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        .one-thing-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #666;
+            margin-bottom: 12px;
+        }
+
+        .one-thing-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-size: 28px;
+            font-weight: 600;
+            text-align: center;
+            outline: none;
+        }
+
+        .one-thing-input::placeholder {
+            color: #444;
+        }
+
+        .one-thing-input:focus {
+            color: #22c55e;
+        }
+
+        /* Floating Goal Window */
+        .goal-float {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(15, 15, 15, 0.95);
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 16px 20px;
+            z-index: 1000;
+            cursor: move;
+            user-select: none;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            min-width: 200px;
+        }
+
+        .goal-float:hover {
+            border-color: #444;
+        }
+
+        .goal-float-amount {
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #22c55e, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-align: center;
+        }
+
+        .goal-float-why {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            margin-top: 4px;
+        }
+
+        .goal-float-why strong {
+            color: #888;
+        }
+
+        .goal-float-handle {
+            position: absolute;
+            top: 6px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 32px;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+        }
+
+        /* Day Toggle */
+        .day-toggle-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .day-toggle {
+            display: flex;
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 4px;
+            border: 1px solid #2a2a2a;
+        }
+
+        .day-toggle button {
+            background: transparent;
+            border: none;
+            color: #888;
+            padding: 10px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .day-toggle button:hover {
+            color: #e0e0e0;
+        }
+
+        .day-toggle button.active {
+            background: #2563eb;
+            color: white;
+        }
+
+        .day-toggle button.tomorrow.active {
+            background: #7c3aed;
+        }
+
+        .planning-mode-banner {
+            display: none;
+            background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+            color: white;
+            text-align: center;
+            padding: 8px 16px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 13px;
+        }
+
+        .planning-mode-banner.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- Floating Goal Window -->
+    <div class="goal-float" id="goalFloat">
+        <div class="goal-float-handle"></div>
+        <div class="goal-float-amount">€5k → €10k</div>
+        <div class="goal-float-why">For <strong>Paula</strong> & the kids</div>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>Outreach Tracker</h1>
+            <div class="header-actions">
+                <div class="view-toggle">
+                    <button id="btnPipeline" class="active" onclick="setView('pipeline')">Pipeline</button>
+                    <button id="btnList" onclick="setView('list')">List</button>
+                </div>
+                <button class="btn" onclick="openModal()">+ Add Prospect</button>
+            </div>
+        </header>
+
+        <!-- Day Toggle -->
+        <div class="day-toggle-container">
+            <div class="day-toggle">
+                <button id="btnToday" class="active" onclick="setDayView('today')">Today</button>
+                <button id="btnTomorrow" class="tomorrow" onclick="setDayView('tomorrow')">Tomorrow</button>
+            </div>
+        </div>
+
+        <!-- Planning Mode Banner -->
+        <div class="planning-mode-banner" id="planningBanner">
+            📋 Planning for Tomorrow - Changes will take effect tomorrow morning
+        </div>
+
+        <!-- One Thing -->
+        <div class="one-thing">
+            <div class="one-thing-label" id="oneThingLabel">The One Thing</div>
+            <input type="text" class="one-thing-input" id="oneThingInput"
+                placeholder="What matters most today?"
+                onchange="saveOneThing(this.value)">
+        </div>
+
+        <!-- Pomodoro Timer -->
+        <div class="pomodoro">
+            <div class="pomo-timer">
+                <div>
+                    <div class="pomo-display work" id="pomoDisplay">50:00</div>
+                    <div class="pomo-status work" id="pomoStatus">Work Session</div>
+                </div>
+                <div class="pomo-controls">
+                    <button class="pomo-btn primary" id="pomoToggle" onclick="togglePomo()">Start</button>
+                    <button class="pomo-btn" onclick="resetPomo()">Reset</button>
+                </div>
+            </div>
+            <div class="pomo-stats">
+                <div class="pomo-sessions" id="pomoSessions">0</div>
+                <div class="pomo-sessions-label">Sessions Today</div>
+            </div>
+        </div>
+
+        <!-- Daily Tasks -->
+        <div class="daily-tasks">
+            <div class="daily-tasks-header">
+                <div class="daily-tasks-title" id="dailyTasksTitle">Today's Main Tasks</div>
+            </div>
+            <div class="daily-tasks-list" id="dailyTasksList">
+                <!-- Tasks rendered by JS -->
+            </div>
+        </div>
+
+        <div class="goal-section">
+            <div class="goal-header">
+                <span style="font-weight: 600;">Goal: Close 3-5 new clients</span>
+                <span id="goalProgress">0 / 3 closed</span>
+            </div>
+            <div class="goal-progress">
+                <div class="goal-progress-bar" id="goalProgressBar" style="width: 0%"></div>
+            </div>
+            <div class="goal-text" id="goalText">Add prospects and move them through your pipeline</div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-label">Total Prospects</div>
+                <div class="stat-value" id="statTotal">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Contacted</div>
+                <div class="stat-value blue" id="statContacted">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Responded</div>
+                <div class="stat-value purple" id="statResponded">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Calls Scheduled</div>
+                <div class="stat-value yellow" id="statCalls">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Closed</div>
+                <div class="stat-value green" id="statClosed">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Response Rate</div>
+                <div class="stat-value" id="statResponseRate">0%</div>
+            </div>
+        </div>
+
+        <div class="pipeline">
+            <div class="column" data-status="new">
+                <div class="column-header">
+                    <span class="column-title">New</span>
+                    <span class="column-count" id="countNew">0</span>
+                </div>
+                <div class="column-body" id="colNew"></div>
+            </div>
+            <div class="column" data-status="contacted">
+                <div class="column-header">
+                    <span class="column-title">Contacted</span>
+                    <span class="column-count" id="countContacted">0</span>
+                </div>
+                <div class="column-body" id="colContacted"></div>
+            </div>
+            <div class="column" data-status="responded">
+                <div class="column-header">
+                    <span class="column-title">Responded</span>
+                    <span class="column-count" id="countResponded">0</span>
+                </div>
+                <div class="column-body" id="colResponded"></div>
+            </div>
+            <div class="column" data-status="call_scheduled">
+                <div class="column-header">
+                    <span class="column-title">Call Scheduled</span>
+                    <span class="column-count" id="countCall">0</span>
+                </div>
+                <div class="column-body" id="colCall"></div>
+            </div>
+            <div class="column" data-status="closed">
+                <div class="column-header">
+                    <span class="column-title">Closed</span>
+                    <span class="column-count" id="countClosed">0</span>
+                </div>
+                <div class="column-body" id="colClosed"></div>
+            </div>
+            <div class="column" data-status="lost">
+                <div class="column-header">
+                    <span class="column-title">Lost</span>
+                    <span class="column-count" id="countLost">0</span>
+                </div>
+                <div class="column-body" id="colLost"></div>
+            </div>
+        </div>
+
+        <div class="list-view" id="listView">
+            <table class="prospects-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Company</th>
+                        <th>Status</th>
+                        <th>Follow-up</th>
+                        <th>Email</th>
+                    </tr>
+                </thead>
+                <tbody id="listBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal">
+        <div class="modal">
+            <h2 id="modalTitle">Add Prospect</h2>
+            <form id="prospectForm">
+                <input type="hidden" id="prospectId">
+                <div class="form-group">
+                    <label>Name *</label>
+                    <input type="text" id="prospectName" required placeholder="John Smith">
+                </div>
+                <div class="form-group">
+                    <label>Company</label>
+                    <input type="text" id="prospectCompany" placeholder="Acme Inc">
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="prospectEmail" placeholder="john@acme.com">
+                </div>
+                <div class="form-group">
+                    <label>LinkedIn</label>
+                    <input type="text" id="prospectLinkedin" placeholder="linkedin.com/in/johnsmith">
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="prospectStatus">
+                        <option value="new">New</option>
+                        <option value="contacted">Contacted</option>
+                        <option value="responded">Responded</option>
+                        <option value="call_scheduled">Call Scheduled</option>
+                        <option value="closed">Closed</option>
+                        <option value="lost">Lost</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Next Follow-up</label>
+                    <input type="date" id="prospectFollowup">
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="prospectNotes" placeholder="Add any relevant notes..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="deleteBtn" style="display:none" onclick="deleteProspect()">Delete</button>
+                    <button type="submit" class="btn">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let prospects = [];
+        let draggedProspectId = null;
+        let currentView = 'pipeline';
+        let currentDayView = 'today'; // 'today' or 'tomorrow'
+
+        const statusColumns = {
+            new: 'colNew',
+            contacted: 'colContacted',
+            responded: 'colResponded',
+            call_scheduled: 'colCall',
+            closed: 'colClosed',
+            lost: 'colLost'
+        };
+
+        const statusNext = {
+            new: 'contacted',
+            contacted: 'responded',
+            responded: 'call_scheduled',
+            call_scheduled: 'closed'
+        };
+
+        const statusLabels = {
+            new: 'New',
+            contacted: 'Contacted',
+            responded: 'Responded',
+            call_scheduled: 'Call Scheduled',
+            closed: 'Closed',
+            lost: 'Lost'
+        };
+
+        // Pomodoro Timer
+        const WORK_DURATION = 50 * 60; // 50 minutes in seconds
+        const BREAK_DURATION = 10 * 60; // 10 minutes in seconds
+        let pomoTime = WORK_DURATION;
+        let pomoRunning = false;
+        let pomoInterval = null;
+        let pomoIsBreak = false;
+        let pomoSessions = parseInt(localStorage.getItem('pomoSessionsToday') || '0');
+        let pomoLastDate = localStorage.getItem('pomoLastDate');
+
+        // Reset sessions if it's a new day
+        const today = new Date().toDateString();
+        if (pomoLastDate !== today) {
+            pomoSessions = 0;
+            localStorage.setItem('pomoSessionsToday', '0');
+            localStorage.setItem('pomoLastDate', today);
+        }
+
+        function updatePomoDisplay() {
+            const mins = Math.floor(pomoTime / 60);
+            const secs = pomoTime % 60;
+            const display = document.getElementById('pomoDisplay');
+            const status = document.getElementById('pomoStatus');
+            const toggle = document.getElementById('pomoToggle');
+            const sessions = document.getElementById('pomoSessions');
+
+            display.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            display.className = `pomo-display ${pomoIsBreak ? 'break' : 'work'}`;
+            status.textContent = pomoIsBreak ? 'Break Time' : 'Work Session';
+            status.className = `pomo-status ${pomoIsBreak ? 'break' : 'work'}`;
+            toggle.textContent = pomoRunning ? 'Pause' : 'Start';
+            toggle.className = `pomo-btn primary ${pomoRunning ? 'running' : ''}`;
+            sessions.textContent = pomoSessions;
+
+            // Update page title with timer
+            if (pomoRunning) {
+                document.title = `${display.textContent} - ${pomoIsBreak ? 'Break' : 'Focus'}`;
+            } else {
+                document.title = 'Outreach Tracker';
+            }
+        }
+
+        function togglePomo() {
+            if (pomoRunning) {
+                clearInterval(pomoInterval);
+                pomoRunning = false;
+            } else {
+                pomoRunning = true;
+                pomoInterval = setInterval(() => {
+                    pomoTime--;
+                    if (pomoTime <= 0) {
+                        clearInterval(pomoInterval);
+                        pomoRunning = false;
+
+                        if (!pomoIsBreak) {
+                            // Work session completed
+                            pomoSessions++;
+                            localStorage.setItem('pomoSessionsToday', pomoSessions.toString());
+                            playNotification('Work session complete! Take a break.');
+                            pomoIsBreak = true;
+                            pomoTime = BREAK_DURATION;
+                        } else {
+                            // Break completed
+                            playNotification('Break over! Ready to focus?');
+                            pomoIsBreak = false;
+                            pomoTime = WORK_DURATION;
+                        }
+                    }
+                    updatePomoDisplay();
+                }, 1000);
+            }
+            updatePomoDisplay();
+        }
+
+        function resetPomo() {
+            clearInterval(pomoInterval);
+            pomoRunning = false;
+            pomoIsBreak = false;
+            pomoTime = WORK_DURATION;
+            updatePomoDisplay();
+        }
+
+        function playNotification(message) {
+            // Browser notification
+            if (Notification.permission === 'granted') {
+                new Notification('Pomodoro Timer', { body: message });
+            } else if (Notification.permission !== 'denied') {
+                Notification.requestPermission();
+            }
+            // Also alert as fallback
+            alert(message);
+        }
+
+        // Request notification permission on load
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+
+        // Initialize display
+        updatePomoDisplay();
+
+        // One Thing
+        function getOneThingKey() {
+            return currentDayView === 'today' ? 'oneThing' : 'oneThingTomorrow';
+        }
+
+        function loadOneThing() {
+            const key = getOneThingKey();
+            let value = localStorage.getItem(key) || '';
+            let dateKey = key + 'Date';
+            let savedDate = localStorage.getItem(dateKey);
+
+            // For today's one thing, check if it's a new day and load from yesterday's tomorrow
+            if (currentDayView === 'today' && savedDate !== today) {
+                const tomorrowValue = localStorage.getItem('oneThingTomorrow') || '';
+                value = tomorrowValue;
+                localStorage.setItem('oneThing', value);
+                localStorage.setItem('oneThingDate', today);
+                // Clear tomorrow's planning
+                localStorage.setItem('oneThingTomorrow', '');
+            }
+
+            document.getElementById('oneThingInput').value = value;
+        }
+
+        function saveOneThing(value) {
+            const key = getOneThingKey();
+            const dateKey = key + 'Date';
+            localStorage.setItem(key, value);
+            localStorage.setItem(dateKey, today);
+
+            // Sync to backend for daily email
+            if (currentDayView === 'today') {
+                syncDailyPlanning();
+            }
+        }
+
+        // Sync daily planning to backend for email summaries
+        async function syncDailyPlanning() {
+            try {
+                const oneThing = localStorage.getItem('oneThing') || '';
+                const tasks = JSON.parse(localStorage.getItem('dailyTasks') || '[]');
+
+                await fetch('/api/daily-planning', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        oneThing: oneThing,
+                        tasks: tasks
+                    })
+                });
+            } catch (error) {
+                console.error('Failed to sync daily planning:', error);
+            }
+        }
+
+        // Daily Tasks
+        const MAX_TASKS = 3;
+        let dailyTasks = [];
+        let tomorrowTasks = [];
+
+        function getDailyTasksKey() {
+            return currentDayView === 'today' ? 'dailyTasks' : 'dailyTasksTomorrow';
+        }
+
+        function loadDailyTasks() {
+            const key = getDailyTasksKey();
+            let tasks = JSON.parse(localStorage.getItem(key) || '[]');
+            const dateKey = key + 'Date';
+            let savedDate = localStorage.getItem(dateKey);
+
+            // For today's tasks, check if it's a new day and load from yesterday's tomorrow
+            if (currentDayView === 'today' && savedDate !== today) {
+                // Save yesterday's completed tasks for the email
+                const yesterdayTasks = JSON.parse(localStorage.getItem('dailyTasks') || '[]');
+                localStorage.setItem('dailyTasksYesterday', JSON.stringify(yesterdayTasks));
+                localStorage.setItem('dailyTasksYesterdayDate', today);
+
+                // Load tomorrow's tasks as today's tasks
+                const tomorrowPlanned = JSON.parse(localStorage.getItem('dailyTasksTomorrow') || '[]');
+                tasks = tomorrowPlanned.map(t => ({ ...t, completed: false })); // Reset completion
+                localStorage.setItem('dailyTasks', JSON.stringify(tasks));
+                localStorage.setItem('dailyTasksDate', today);
+                // Clear tomorrow's planning
+                localStorage.setItem('dailyTasksTomorrow', '[]');
+            }
+
+            if (currentDayView === 'today') {
+                dailyTasks = tasks;
+            } else {
+                tomorrowTasks = tasks;
+            }
+        }
+
+        function saveDailyTasks() {
+            const key = getDailyTasksKey();
+            const dateKey = key + 'Date';
+            const tasks = currentDayView === 'today' ? dailyTasks : tomorrowTasks;
+            localStorage.setItem(key, JSON.stringify(tasks));
+            localStorage.setItem(dateKey, today);
+
+            // Sync to backend for daily email
+            if (currentDayView === 'today') {
+                syncDailyPlanning();
+            }
+        }
+
+        function getCurrentTasks() {
+            return currentDayView === 'today' ? dailyTasks : tomorrowTasks;
+        }
+
+        function setCurrentTasks(tasks) {
+            if (currentDayView === 'today') {
+                dailyTasks = tasks;
+            } else {
+                tomorrowTasks = tasks;
+            }
+        }
+
+        function renderDailyTasks() {
+            const container = document.getElementById('dailyTasksList');
+            const tasks = getCurrentTasks();
+            let html = '';
+
+            tasks.forEach((task, index) => {
+                html += `
+                    <div class="daily-task ${task.completed ? 'completed' : ''}" data-index="${index}">
+                        <div class="daily-task-checkbox" onclick="toggleDailyTask(${index})"></div>
+                        <input type="text" class="daily-task-input" value="${escapeHtml(task.text)}"
+                            placeholder="What's your focus?"
+                            onchange="updateDailyTask(${index}, this.value)"
+                            ${task.completed ? 'readonly' : ''}>
+                        <button class="daily-task-delete" onclick="deleteDailyTask(${index})">✕</button>
+                    </div>
+                `;
+            });
+
+            if (tasks.length < MAX_TASKS) {
+                html += `<button class="add-task-btn" onclick="addDailyTask()">+ Add task (${tasks.length}/${MAX_TASKS})</button>`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function addDailyTask() {
+            const tasks = getCurrentTasks();
+            if (tasks.length >= MAX_TASKS) return;
+            tasks.push({ text: '', completed: false });
+            setCurrentTasks(tasks);
+            saveDailyTasks();
+            renderDailyTasks();
+            // Focus the new input
+            setTimeout(() => {
+                const inputs = document.querySelectorAll('.daily-task-input');
+                inputs[inputs.length - 1]?.focus();
+            }, 10);
+        }
+
+        function updateDailyTask(index, text) {
+            const tasks = getCurrentTasks();
+            tasks[index].text = text;
+            setCurrentTasks(tasks);
+            saveDailyTasks();
+        }
+
+        function toggleDailyTask(index) {
+            const tasks = getCurrentTasks();
+            tasks[index].completed = !tasks[index].completed;
+            setCurrentTasks(tasks);
+            saveDailyTasks();
+            renderDailyTasks();
+
+            // Check if all tasks are completed (only for today)
+            if (currentDayView === 'today') {
+                const hasActiveTasks = tasks.some(t => t.text.trim() !== '');
+                const allCompleted = hasActiveTasks && tasks.filter(t => t.text.trim() !== '').every(t => t.completed);
+
+                if (allCompleted) {
+                    showCelebration();
+                }
+            }
+        }
+
+        function deleteDailyTask(index) {
+            const tasks = getCurrentTasks();
+            tasks.splice(index, 1);
+            setCurrentTasks(tasks);
+            saveDailyTasks();
+            renderDailyTasks();
+        }
+
+        function showCelebration() {
+            const celebration = document.getElementById('celebration');
+            celebration.classList.add('active');
+
+            // Add confetti
+            const colors = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#a855f7', '#ec4899'];
+            for (let i = 0; i < 50; i++) {
+                setTimeout(() => {
+                    const confetti = document.createElement('div');
+                    confetti.className = 'confetti';
+                    confetti.style.left = Math.random() * 100 + 'vw';
+                    confetti.style.background = colors[Math.floor(Math.random() * colors.length)];
+                    confetti.style.animationDelay = Math.random() * 0.5 + 's';
+                    celebration.appendChild(confetti);
+
+                    setTimeout(() => confetti.remove(), 3000);
+                }, i * 50);
+            }
+        }
+
+        function closeCelebration() {
+            document.getElementById('celebration').classList.remove('active');
+        }
+
+        // Day View Toggle
+        function setDayView(view) {
+            currentDayView = view;
+            const btnToday = document.getElementById('btnToday');
+            const btnTomorrow = document.getElementById('btnTomorrow');
+            const banner = document.getElementById('planningBanner');
+            const oneThingLabel = document.getElementById('oneThingLabel');
+            const dailyTasksTitle = document.getElementById('dailyTasksTitle');
+            const oneThingInput = document.getElementById('oneThingInput');
+
+            if (view === 'today') {
+                btnToday.classList.add('active');
+                btnTomorrow.classList.remove('active');
+                banner.classList.remove('active');
+                oneThingLabel.textContent = 'The One Thing';
+                dailyTasksTitle.textContent = "Today's Main Tasks";
+                oneThingInput.placeholder = 'What matters most today?';
+            } else {
+                btnToday.classList.remove('active');
+                btnTomorrow.classList.add('active');
+                banner.classList.add('active');
+                oneThingLabel.textContent = 'Tomorrow\'s One Thing';
+                dailyTasksTitle.textContent = "Tomorrow's Main Tasks";
+                oneThingInput.placeholder = 'What matters most tomorrow?';
+            }
+
+            loadOneThing();
+            loadDailyTasks();
+            renderDailyTasks();
+        }
+
+        // Initialize
+        loadOneThing();
+        loadDailyTasks();
+        renderDailyTasks();
+
+        function setView(view) {
+            currentView = view;
+            const pipeline = document.querySelector('.pipeline');
+            const listView = document.getElementById('listView');
+            const btnPipeline = document.getElementById('btnPipeline');
+            const btnList = document.getElementById('btnList');
+
+            if (view === 'pipeline') {
+                pipeline.classList.remove('hidden');
+                listView.classList.remove('active');
+                btnPipeline.classList.add('active');
+                btnList.classList.remove('active');
+            } else {
+                pipeline.classList.add('hidden');
+                listView.classList.add('active');
+                btnPipeline.classList.remove('active');
+                btnList.classList.add('active');
+                renderListView();
+            }
+        }
+
+        function renderListView() {
+            const tbody = document.getElementById('listBody');
+            if (prospects.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="table-empty">No prospects yet. Add your first one!</td></tr>';
+                return;
+            }
+            tbody.innerHTML = prospects.map(p => {
+                let followupText = '-';
+                if (p.next_followup) {
+                    const date = new Date(p.next_followup);
+                    const today = new Date();
+                    today.setHours(0,0,0,0);
+                    const isOverdue = date < today;
+                    followupText = `<span style="color: ${isOverdue ? '#ef4444' : '#f59e0b'}">${date.toLocaleDateString()}</span>`;
+                }
+                return `
+                    <tr onclick="editProspect(prospects.find(pr => pr.id === ${p.id}))">
+                        <td><strong>${escapeHtml(p.name)}</strong></td>
+                        <td>${escapeHtml(p.company) || '-'}</td>
+                        <td><span class="status-badge ${p.status}">${statusLabels[p.status]}</span></td>
+                        <td>${followupText}</td>
+                        <td>${escapeHtml(p.email) || '-'}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function loadProspects() {
+            const res = await fetch('/api/prospects');
+            prospects = await res.json();
+            renderPipeline();
+            if (currentView === 'list') renderListView();
+            loadStats();
+        }
+
+        async function loadStats() {
+            const res = await fetch('/api/stats');
+            const stats = await res.json();
+
+            document.getElementById('statTotal').textContent = stats.total;
+            document.getElementById('statContacted').textContent = stats.by_status.contacted || 0;
+            document.getElementById('statResponded').textContent = stats.by_status.responded || 0;
+            document.getElementById('statCalls').textContent = stats.by_status.call_scheduled || 0;
+            document.getElementById('statClosed').textContent = stats.by_status.closed || 0;
+            document.getElementById('statResponseRate').textContent = stats.response_rate + '%';
+
+            document.getElementById('countNew').textContent = stats.by_status.new || 0;
+            document.getElementById('countContacted').textContent = stats.by_status.contacted || 0;
+            document.getElementById('countResponded').textContent = stats.by_status.responded || 0;
+            document.getElementById('countCall').textContent = stats.by_status.call_scheduled || 0;
+            document.getElementById('countClosed').textContent = stats.by_status.closed || 0;
+            document.getElementById('countLost').textContent = stats.by_status.lost || 0;
+
+            const closed = stats.by_status.closed || 0;
+            document.getElementById('goalProgress').textContent = `${closed} / 3 closed`;
+            document.getElementById('goalProgressBar').style.width = `${Math.min(closed / 3 * 100, 100)}%`;
+
+            if (closed >= 3) {
+                document.getElementById('goalText').textContent = 'Goal reached! Keep going!';
+            } else {
+                const needed = 3 - closed;
+                document.getElementById('goalText').textContent = `${needed} more closed deal${needed > 1 ? 's' : ''} to reach your goal`;
+            }
+        }
+
+        function renderPipeline() {
+            Object.values(statusColumns).forEach(colId => {
+                document.getElementById(colId).innerHTML = '';
+            });
+            prospects.forEach(p => {
+                const col = document.getElementById(statusColumns[p.status]);
+                if (col) col.appendChild(createProspectCard(p));
+            });
+            Object.entries(statusColumns).forEach(([status, colId]) => {
+                const col = document.getElementById(colId);
+                if (col.children.length === 0) {
+                    col.innerHTML = '<div class="empty-state"><p>No prospects</p></div>';
+                }
+            });
+        }
+
+        function createProspectCard(prospect) {
+            const card = document.createElement('div');
+            card.className = `prospect-card status-${prospect.status}`;
+            card.draggable = true;
+            card.dataset.id = prospect.id;
+
+            card.ondragstart = (e) => {
+                draggedProspectId = prospect.id;
+                card.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            };
+            card.ondragend = () => {
+                card.classList.remove('dragging');
+                draggedProspectId = null;
+            };
+            card.onclick = (e) => {
+                if (!e.target.classList.contains('quick-btn')) editProspect(prospect);
+            };
+
+            let followupHtml = '';
+            if (prospect.next_followup) {
+                const followupDate = new Date(prospect.next_followup);
+                const today = new Date();
+                today.setHours(0,0,0,0);
+                const isOverdue = followupDate < today;
+                followupHtml = `<div class="prospect-followup ${isOverdue ? 'overdue' : ''}">
+                    ${isOverdue ? 'Overdue: ' : 'Follow-up: '}${followupDate.toLocaleDateString()}
+                </div>`;
+            }
+
+            const nextStatus = statusNext[prospect.status];
+            card.innerHTML = `
+                <div class="prospect-name">${escapeHtml(prospect.name)}</div>
+                ${prospect.company ? `<div class="prospect-company">${escapeHtml(prospect.company)}</div>` : ''}
+                ${followupHtml}
+                <div class="quick-actions">
+                    ${nextStatus ? `<button class="quick-btn" onclick="event.stopPropagation(); moveToStatus(${prospect.id}, '${nextStatus}')">
+                        Move to ${nextStatus.replace('_', ' ')}
+                    </button>` : ''}
+                    ${prospect.status !== 'lost' && prospect.status !== 'closed' ? `<button class="quick-btn" onclick="event.stopPropagation(); moveToStatus(${prospect.id}, 'lost')">
+                        Mark lost
+                    </button>` : ''}
+                </div>
+            `;
+            return card;
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function moveToStatus(id, status) {
+            await fetch(`/api/prospects/${id}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status })
+            });
+            loadProspects();
+        }
+
+        function openModal(prospect = null) {
+            const modal = document.getElementById('modal');
+            const form = document.getElementById('prospectForm');
+            const title = document.getElementById('modalTitle');
+            const deleteBtn = document.getElementById('deleteBtn');
+
+            form.reset();
+
+            if (prospect) {
+                title.textContent = 'Edit Prospect';
+                deleteBtn.style.display = 'block';
+                document.getElementById('prospectId').value = prospect.id;
+                document.getElementById('prospectName').value = prospect.name || '';
+                document.getElementById('prospectCompany').value = prospect.company || '';
+                document.getElementById('prospectEmail').value = prospect.email || '';
+                document.getElementById('prospectLinkedin').value = prospect.linkedin || '';
+                document.getElementById('prospectStatus').value = prospect.status || 'new';
+                document.getElementById('prospectFollowup').value = prospect.next_followup || '';
+                document.getElementById('prospectNotes').value = prospect.notes || '';
+            } else {
+                title.textContent = 'Add Prospect';
+                deleteBtn.style.display = 'none';
+                document.getElementById('prospectId').value = '';
+            }
+            modal.classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.remove('active');
+        }
+
+        function editProspect(prospect) {
+            openModal(prospect);
+        }
+
+        async function deleteProspect() {
+            const id = document.getElementById('prospectId').value;
+            if (!id) return;
+            if (confirm('Delete this prospect?')) {
+                await fetch(`/api/prospects/${id}`, { method: 'DELETE' });
+                closeModal();
+                loadProspects();
+            }
+        }
+
+        document.getElementById('prospectForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('prospectId').value;
+            const data = {
+                name: document.getElementById('prospectName').value,
+                company: document.getElementById('prospectCompany').value,
+                email: document.getElementById('prospectEmail').value,
+                linkedin: document.getElementById('prospectLinkedin').value,
+                status: document.getElementById('prospectStatus').value,
+                next_followup: document.getElementById('prospectFollowup').value || null,
+                notes: document.getElementById('prospectNotes').value
+            };
+
+            if (id) {
+                await fetch(`/api/prospects/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+            } else {
+                await fetch('/api/prospects', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+            }
+            closeModal();
+            loadProspects();
+        };
+
+        document.getElementById('modal').onclick = (e) => {
+            if (e.target.id === 'modal') closeModal();
+        };
+
+        document.onkeydown = (e) => {
+            if (e.key === 'Escape') closeModal();
+        };
+
+        function setupDropZones() {
+            document.querySelectorAll('.column').forEach(column => {
+                const status = column.dataset.status;
+                const body = column.querySelector('.column-body');
+
+                body.ondragover = (e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                };
+                body.ondragenter = (e) => {
+                    e.preventDefault();
+                    body.classList.add('drag-over');
+                };
+                body.ondragleave = (e) => {
+                    if (!body.contains(e.relatedTarget)) body.classList.remove('drag-over');
+                };
+                body.ondrop = async (e) => {
+                    e.preventDefault();
+                    body.classList.remove('drag-over');
+                    if (draggedProspectId) await moveToStatus(draggedProspectId, status);
+                };
+            });
+        }
+
+        setupDropZones();
+        loadProspects();
+
+        // Draggable Goal Window
+        const goalFloat = document.getElementById('goalFloat');
+        let isDragging = false;
+        let dragOffset = { x: 0, y: 0 };
+
+        // Load saved position
+        const savedPos = JSON.parse(localStorage.getItem('goalFloatPos') || 'null');
+        if (savedPos) {
+            goalFloat.style.top = savedPos.top + 'px';
+            goalFloat.style.left = savedPos.left + 'px';
+            goalFloat.style.right = 'auto';
+        }
+
+        goalFloat.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            dragOffset.x = e.clientX - goalFloat.offsetLeft;
+            dragOffset.y = e.clientY - goalFloat.offsetTop;
+            goalFloat.style.right = 'auto';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const x = Math.max(0, Math.min(e.clientX - dragOffset.x, window.innerWidth - goalFloat.offsetWidth));
+            const y = Math.max(0, Math.min(e.clientY - dragOffset.y, window.innerHeight - goalFloat.offsetHeight));
+            goalFloat.style.left = x + 'px';
+            goalFloat.style.top = y + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                localStorage.setItem('goalFloatPos', JSON.stringify({
+                    top: goalFloat.offsetTop,
+                    left: goalFloat.offsetLeft
+                }));
+            }
+        });
+    </script>
+
+    <!-- Celebration Overlay -->
+    <div class="celebration" id="celebration">
+        <div class="celebration-content">
+            <div class="celebration-emoji">🎉</div>
+            <div class="celebration-title">YOU CRUSHED IT!</div>
+            <div class="celebration-subtitle">All tasks complete. You're unstoppable.</div>
+            <button class="celebration-btn" onclick="closeCelebration()">Keep Going</button>
+        </div>
+    </div>
+</body>
+</html>

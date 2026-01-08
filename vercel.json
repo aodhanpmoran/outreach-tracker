@@ -1,0 +1,24 @@
+{
+  "rewrites": [
+    { "source": "/api/prospects", "destination": "/api/prospects" },
+    { "source": "/api/prospect", "destination": "/api/prospect" },
+    { "source": "/api/stats", "destination": "/api/stats" },
+    { "source": "/api/daily-planning", "destination": "/api/daily-planning" }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, PATCH, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type" }
+      ]
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/daily-summary",
+      "schedule": "0 5 * * *"
+    }
+  ]
+}
