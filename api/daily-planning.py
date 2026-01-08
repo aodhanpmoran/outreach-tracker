@@ -19,9 +19,10 @@ class handler(BaseHTTPRequestHandler):
 
             supabase = get_supabase()
 
-            # Upsert daily planning for today
+            # Upsert daily planning for specified date (or today if not specified)
+            planning_date = data.get('date', datetime.now().date().isoformat())
             planning_data = {
-                'date': datetime.now().date().isoformat(),
+                'date': planning_date,
                 'one_thing': data.get('oneThing', ''),
                 'tasks': json.dumps(data.get('tasks', [])),
                 'updated_at': datetime.now().isoformat()

@@ -1155,24 +1155,41 @@
             localStorage.setItem(key, value);
             localStorage.setItem(dateKey, today);
 
-            // Sync to backend for daily email
-            if (currentDayView === 'today') {
-                syncDailyPlanning();
-            }
+            // Sync to backend for daily email (both today and tomorrow)
+            syncDailyPlanning();
         }
 
         // Sync daily planning to backend for email summaries
         async function syncDailyPlanning() {
             try {
-                const oneThing = localStorage.getItem('oneThing') || '';
-                const tasks = JSON.parse(localStorage.getItem('dailyTasks') || '[]');
+                // Always sync both today and tomorrow to Supabase
+                const todayOneThing = localStorage.getItem('oneThing') || '';
+                const todayTasks = JSON.parse(localStorage.getItem('dailyTasks') || '[]');
 
+                const tomorrowOneThing = localStorage.getItem('oneThingTomorrow') || '';
+                const tomorrowTasks = JSON.parse(localStorage.getItem('dailyTasksTomorrow') || '[]');
+
+                // Sync today
                 await fetch('/api/daily-planning', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        oneThing: oneThing,
-                        tasks: tasks
+                        date: new Date().toISOString().split('T')[0],
+                        oneThing: todayOneThing,
+                        tasks: todayTasks
+                    })
+                });
+
+                // Sync tomorrow
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                await fetch('/api/daily-planning', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        date: tomorrow.toISOString().split('T')[0],
+                        oneThing: tomorrowOneThing,
+                        tasks: tomorrowTasks
                     })
                 });
             } catch (error) {
@@ -1225,10 +1242,8 @@
             localStorage.setItem(key, JSON.stringify(tasks));
             localStorage.setItem(dateKey, today);
 
-            // Sync to backend for daily email
-            if (currentDayView === 'today') {
-                syncDailyPlanning();
-            }
+            // Sync to backend for daily email (both today and tomorrow)
+            syncDailyPlanning();
         }
 
         function getCurrentTasks() {
