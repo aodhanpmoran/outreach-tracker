@@ -48,8 +48,22 @@ def index():
 
 @app.route('/api/prospects', methods=['GET'])
 def get_prospects():
+    fields_param = request.args.get('fields')
+    allowed_fields = {
+        'id', 'name', 'company', 'email', 'linkedin', 'notes', 'status',
+        'next_followup', 'created_at', 'updated_at'
+    }
+    if fields_param:
+        requested = [f.strip() for f in fields_param.split(',') if f.strip()]
+        selected = [f for f in requested if f in allowed_fields]
+        select_fields = ', '.join(selected) if selected else '*'
+    else:
+        select_fields = '*'
+
     conn = get_db()
-    prospects = conn.execute('SELECT * FROM prospects ORDER BY updated_at DESC').fetchall()
+    prospects = conn.execute(
+        f'SELECT {select_fields} FROM prospects ORDER BY updated_at DESC'
+    ).fetchall()
     conn.close()
     return jsonify([dict(p) for p in prospects])
 
@@ -119,6 +133,20 @@ def update_status(id):
     conn.close()
     return jsonify(dict(prospect))
 
+@app.route('/api/prospect', methods=['GET'])
+def get_prospect():
+    prospect_id = request.args.get('id')
+    if not prospect_id:
+        return jsonify({'error': 'Missing id parameter'}), 400
+
+    conn = get_db()
+    prospect = conn.execute('SELECT * FROM prospects WHERE id = ?', (prospect_id,)).fetchone()
+    conn.close()
+
+    if prospect:
+        return jsonify(dict(prospect))
+    return jsonify(None)
+
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
     conn = get_db()
@@ -145,6 +173,8 @@ def get_tasks():
     conn = get_db()
     date_entered = request.args.get('date_entered')
     completed = request.args.get('completed')
+    limit_param = request.args.get('limit')
+    offset_param = request.args.get('offset')
 
     query = 'SELECT * FROM tasks'
     params = []
@@ -161,6 +191,18 @@ def get_tasks():
         query += ' WHERE ' + ' AND '.join(conditions)
 
     query += ' ORDER BY date_entered DESC, created_at DESC'
+
+    if limit_param:
+        try:
+            limit = max(1, min(int(limit_param), 1000))
+        except ValueError:
+            limit = 200
+        try:
+            offset = max(0, int(offset_param or 0))
+        except ValueError:
+            offset = 0
+        query += ' LIMIT ? OFFSET ?'
+        params.extend([limit, offset])
 
     tasks = conn.execute(query, params).fetchall()
     conn.close()

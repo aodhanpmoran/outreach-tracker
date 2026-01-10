@@ -1041,6 +1041,25 @@
             color: #666;
         }
 
+        .history-load-more {
+            width: 100%;
+            margin: 16px 0 32px;
+            padding: 12px 16px;
+            background: #111;
+            border: 1px solid #2a2a2a;
+            color: #e5e7eb;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 13px;
+            letter-spacing: 0.02em;
+            transition: all 0.2s;
+        }
+
+        .history-load-more:hover {
+            border-color: #3b82f6;
+            color: #fff;
+        }
+
         @media (max-width: 520px) {
             .history-panel {
                 width: 100%;
@@ -1303,6 +1322,8 @@
             closed: 'Closed',
             lost: 'Lost'
         };
+
+        const PROSPECT_FIELDS = 'id,name,company,email,status,next_followup,updated_at';
 
         // Pomodoro Timer
         const WORK_DURATION = 50 * 60; // 50 minutes in seconds
@@ -1841,17 +1862,44 @@
         }
 
         async function loadProspects() {
-            const res = await fetch('/api/prospects');
+            const res = await fetch(`/api/prospects?fields=${encodeURIComponent(PROSPECT_FIELDS)}`);
             prospects = await res.json();
             renderPipeline();
             if (currentView === 'list') renderListView();
-            loadStats();
+            loadStats(prospects);
         }
 
-        async function loadStats() {
-            const res = await fetch('/api/stats');
-            const stats = await res.json();
+        function computeStatsFromProspects(list) {
+            const statusCounts = {};
+            list.forEach(p => {
+                const status = p.status || 'new';
+                statusCounts[status] = (statusCounts[status] || 0) + 1;
+            });
 
+            const total = list.length;
+            const closed = statusCounts.closed || 0;
+            const conversionRate = total > 0 ? Math.round((closed / total * 100) * 10) / 10 : 0;
+
+            const respondedPlus = (
+                (statusCounts.responded || 0) +
+                (statusCounts.call_scheduled || 0) +
+                (statusCounts.closed || 0) +
+                (statusCounts.lost || 0)
+            );
+            const contactedTotal = total - (statusCounts.new || 0);
+            const responseRate = contactedTotal > 0
+                ? Math.round((respondedPlus / Math.max(contactedTotal, 1) * 100) * 10) / 10
+                : 0;
+
+            return {
+                total: total,
+                by_status: statusCounts,
+                conversion_rate: conversionRate,
+                response_rate: responseRate
+            };
+        }
+
+        function updateStatsUI(stats) {
             document.getElementById('statTotal').textContent = stats.total;
             document.getElementById('statContacted').textContent = stats.by_status.contacted || 0;
             document.getElementById('statResponded').textContent = stats.by_status.responded || 0;
@@ -1876,6 +1924,17 @@
                 const needed = 3 - closed;
                 document.getElementById('goalText').textContent = `${needed} more closed deal${needed > 1 ? 's' : ''} to reach your goal`;
             }
+        }
+
+        async function loadStats(list) {
+            if (Array.isArray(list)) {
+                updateStatsUI(computeStatsFromProspects(list));
+                return;
+            }
+
+            const res = await fetch('/api/stats');
+            const stats = await res.json();
+            updateStatsUI(stats);
         }
 
         function renderPipeline() {
@@ -1988,7 +2047,22 @@
             document.getElementById('modal').classList.remove('active');
         }
 
-        function editProspect(prospect) {
+        async function editProspect(prospect) {
+            if (!prospect) return;
+            const needsDetails = typeof prospect.linkedin === 'undefined' || typeof prospect.notes === 'undefined';
+            if (needsDetails) {
+                try {
+                    const res = await fetch(`/api/prospect?id=${prospect.id}`);
+                    if (res.ok) {
+                        const fullProspect = await res.json();
+                        if (fullProspect) {
+                            prospect = fullProspect;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to load prospect details:', error);
+                }
+            }
             openModal(prospect);
         }
 
@@ -2108,12 +2182,16 @@
         // Task History Panel
         let allTasks = [];
         let historyFilter = 'all';
+        const HISTORY_PAGE_SIZE = 200;
+        let historyOffset = 0;
+        let historyHasMore = true;
+        let historyLoading = false;
 
         function openHistory() {
             document.getElementById('historyPanel').classList.add('active');
             document.getElementById('historyOverlay').classList.add('active');
             document.body.style.overflow = 'hidden';
-            loadTaskHistory();
+            loadTaskHistory(true);
         }
 
         function closeHistory() {
@@ -2122,18 +2200,42 @@
             document.body.style.overflow = '';
         }
 
-        async function loadTaskHistory() {
+        async function loadTaskHistory(reset = false) {
             const content = document.getElementById('historyContent');
-            content.innerHTML = '<div class="history-loading">Loading tasks...</div>';
+            if (historyLoading) return;
+
+            if (reset) {
+                allTasks = [];
+                historyOffset = 0;
+                historyHasMore = true;
+                content.innerHTML = '<div class="history-loading">Loading tasks...</div>';
+            }
 
             try {
-                const res = await fetch('/api/tasks');
-                allTasks = await res.json();
+                historyLoading = true;
+                const res = await fetch(`/api/tasks?limit=${HISTORY_PAGE_SIZE}&offset=${historyOffset}`);
+                const page = await res.json();
+                const existing = new Set(allTasks.map(task => task.id));
+                page.forEach(task => {
+                    if (!task.id || !existing.has(task.id)) {
+                        allTasks.push(task);
+                    }
+                });
+                historyOffset += page.length;
+                historyHasMore = page.length === HISTORY_PAGE_SIZE;
                 updateHistoryStats();
                 renderTaskHistory();
             } catch (error) {
                 console.error('Failed to load task history:', error);
                 content.innerHTML = '<div class="history-empty"><div class="history-empty-icon">!</div><p>Failed to load tasks</p></div>';
+            } finally {
+                historyLoading = false;
+            }
+        }
+
+        function loadMoreHistory() {
+            if (historyHasMore) {
+                loadTaskHistory(false);
             }
         }
 
@@ -2257,6 +2359,14 @@
 
                 html += `</div>`;
             });
+
+            if (historyHasMore) {
+                html += `
+                    <button class="history-load-more" onclick="loadMoreHistory()">
+                        Load older tasks
+                    </button>
+                `;
+            }
 
             content.innerHTML = html;
         }

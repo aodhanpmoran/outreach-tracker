@@ -16,6 +16,8 @@ class handler(BaseHTTPRequestHandler):
             query = parse_qs(urlparse(self.path).query)
             date_entered = query.get('date_entered', [None])[0]
             completed = query.get('completed', [None])[0]
+            limit_param = query.get('limit', [None])[0]
+            offset_param = query.get('offset', [None])[0]
 
             supabase = get_supabase()
             q = supabase.table('tasks').select('*')
@@ -25,7 +27,20 @@ class handler(BaseHTTPRequestHandler):
             if completed is not None:
                 q = q.eq('completed', completed.lower() == 'true')
 
-            response = q.order('date_entered', desc=True).order('created_at', desc=True).execute()
+            q = q.order('date_entered', desc=True).order('created_at', desc=True)
+
+            if limit_param:
+                try:
+                    limit = max(1, min(int(limit_param), 1000))
+                except ValueError:
+                    limit = 200
+                try:
+                    offset = max(0, int(offset_param or 0))
+                except ValueError:
+                    offset = 0
+                q = q.range(offset, offset + limit - 1)
+
+            response = q.execute()
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')

@@ -13,8 +13,8 @@ class handler(BaseHTTPRequestHandler):
         try:
             supabase = get_supabase()
 
-            # Get all prospects
-            response = supabase.table('prospects').select('*').execute()
+            # Get only statuses to keep payload small
+            response = supabase.table('prospects').select('status').execute()
             prospects = response.data
 
             # Calculate stats
