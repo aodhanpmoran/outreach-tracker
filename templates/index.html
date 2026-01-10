@@ -1877,7 +1877,7 @@
             const id = document.getElementById('prospectId').value;
             if (!id) return;
             if (confirm('Delete this prospect?')) {
-                await fetch(`/api/prospects/${id}`, { method: 'DELETE' });
+                await fetch(`/api/prospect?id=${id}`, { method: 'DELETE' });
                 closeModal();
                 loadProspects();
             }
