@@ -333,82 +333,6 @@
 
         .table-empty { text-align: center; padding: 40px; color: #666; }
 
-        /* Pomodoro Timer */
-        .pomodoro {
-            background: #1a1a1a;
-            border: 1px solid #2a2a2a;
-            border-radius: 8px;
-            padding: 16px 24px;
-            margin-bottom: 24px;
-            display: flex;
-            align-items: center;
-            gap: 24px;
-        }
-
-        .pomo-timer {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-
-        .pomo-display {
-            font-size: 48px;
-            font-weight: 700;
-            font-family: 'SF Mono', 'Monaco', monospace;
-            min-width: 160px;
-        }
-
-        .pomo-display.work { color: #22c55e; }
-        .pomo-display.break { color: #f59e0b; }
-
-        .pomo-status {
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #888;
-        }
-
-        .pomo-status.work { color: #22c55e; }
-        .pomo-status.break { color: #f59e0b; }
-
-        .pomo-controls {
-            display: flex;
-            gap: 8px;
-        }
-
-        .pomo-btn {
-            background: #333;
-            border: none;
-            color: #e0e0e0;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 13px;
-            transition: background 0.2s;
-        }
-
-        .pomo-btn:hover { background: #444; }
-        .pomo-btn.primary { background: #22c55e; color: #000; }
-        .pomo-btn.primary:hover { background: #16a34a; }
-        .pomo-btn.primary.running { background: #ef4444; }
-        .pomo-btn.primary.running:hover { background: #dc2626; }
-
-        .pomo-stats {
-            margin-left: auto;
-            text-align: right;
-        }
-
-        .pomo-sessions {
-            font-size: 24px;
-            font-weight: 600;
-        }
-
-        .pomo-sessions-label {
-            font-size: 11px;
-            color: #888;
-            text-transform: uppercase;
-        }
-
         /* Daily Tasks */
         .daily-tasks {
             background: #1a1a1a;
@@ -1116,24 +1040,6 @@
                 onchange="saveOneThing(this.value)">
         </div>
 
-        <!-- Pomodoro Timer -->
-        <div class="pomodoro">
-            <div class="pomo-timer">
-                <div>
-                    <div class="pomo-display work" id="pomoDisplay">50:00</div>
-                    <div class="pomo-status work" id="pomoStatus">Work Session</div>
-                </div>
-                <div class="pomo-controls">
-                    <button class="pomo-btn primary" id="pomoToggle" onclick="togglePomo()">Start</button>
-                    <button class="pomo-btn" onclick="resetPomo()">Reset</button>
-                </div>
-            </div>
-            <div class="pomo-stats">
-                <div class="pomo-sessions" id="pomoSessions">0</div>
-                <div class="pomo-sessions-label">Sessions Today</div>
-            </div>
-        </div>
-
         <!-- Daily Tasks -->
         <div class="daily-tasks">
             <div class="daily-tasks-header">
@@ -1325,106 +1231,7 @@
 
         const PROSPECT_FIELDS = 'id,name,company,email,status,next_followup,updated_at';
 
-        // Pomodoro Timer
-        const WORK_DURATION = 50 * 60; // 50 minutes in seconds
-        const BREAK_DURATION = 10 * 60; // 10 minutes in seconds
-        let pomoTime = WORK_DURATION;
-        let pomoRunning = false;
-        let pomoInterval = null;
-        let pomoIsBreak = false;
-        let pomoSessions = parseInt(localStorage.getItem('pomoSessionsToday') || '0');
-        let pomoLastDate = localStorage.getItem('pomoLastDate');
-
-        // Reset sessions if it's a new day
         const today = new Date().toDateString();
-        if (pomoLastDate !== today) {
-            pomoSessions = 0;
-            localStorage.setItem('pomoSessionsToday', '0');
-            localStorage.setItem('pomoLastDate', today);
-        }
-
-        function updatePomoDisplay() {
-            const mins = Math.floor(pomoTime / 60);
-            const secs = pomoTime % 60;
-            const display = document.getElementById('pomoDisplay');
-            const status = document.getElementById('pomoStatus');
-            const toggle = document.getElementById('pomoToggle');
-            const sessions = document.getElementById('pomoSessions');
-
-            display.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-            display.className = `pomo-display ${pomoIsBreak ? 'break' : 'work'}`;
-            status.textContent = pomoIsBreak ? 'Break Time' : 'Work Session';
-            status.className = `pomo-status ${pomoIsBreak ? 'break' : 'work'}`;
-            toggle.textContent = pomoRunning ? 'Pause' : 'Start';
-            toggle.className = `pomo-btn primary ${pomoRunning ? 'running' : ''}`;
-            sessions.textContent = pomoSessions;
-
-            // Update page title with timer
-            if (pomoRunning) {
-                document.title = `${display.textContent} - ${pomoIsBreak ? 'Break' : 'Focus'}`;
-            } else {
-                document.title = 'Outreach Tracker';
-            }
-        }
-
-        function togglePomo() {
-            if (pomoRunning) {
-                clearInterval(pomoInterval);
-                pomoRunning = false;
-            } else {
-                pomoRunning = true;
-                pomoInterval = setInterval(() => {
-                    pomoTime--;
-                    if (pomoTime <= 0) {
-                        clearInterval(pomoInterval);
-                        pomoRunning = false;
-
-                        if (!pomoIsBreak) {
-                            // Work session completed
-                            pomoSessions++;
-                            localStorage.setItem('pomoSessionsToday', pomoSessions.toString());
-                            playNotification('Work session complete! Take a break.');
-                            pomoIsBreak = true;
-                            pomoTime = BREAK_DURATION;
-                        } else {
-                            // Break completed
-                            playNotification('Break over! Ready to focus?');
-                            pomoIsBreak = false;
-                            pomoTime = WORK_DURATION;
-                        }
-                    }
-                    updatePomoDisplay();
-                }, 1000);
-            }
-            updatePomoDisplay();
-        }
-
-        function resetPomo() {
-            clearInterval(pomoInterval);
-            pomoRunning = false;
-            pomoIsBreak = false;
-            pomoTime = WORK_DURATION;
-            updatePomoDisplay();
-        }
-
-        function playNotification(message) {
-            // Browser notification
-            if (Notification.permission === 'granted') {
-                new Notification('Pomodoro Timer', { body: message });
-            } else if (Notification.permission !== 'denied') {
-                Notification.requestPermission();
-            }
-            // Also alert as fallback
-            alert(message);
-        }
-
-        // Request notification permission on load
-        if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
-        }
-
-        // Initialize display
-        updatePomoDisplay();
 
         // One Thing
         function getOneThingKey() {
