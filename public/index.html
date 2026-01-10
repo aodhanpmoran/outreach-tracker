@@ -1477,6 +1477,75 @@
             }
         }
 
+        function normalizeServerTasks(rawTasks) {
+            let tasks = [];
+            if (Array.isArray(rawTasks)) {
+                tasks = rawTasks;
+            } else if (typeof rawTasks === 'string') {
+                try {
+                    tasks = JSON.parse(rawTasks);
+                } catch (error) {
+                    tasks = [];
+                }
+            }
+
+            if (!Array.isArray(tasks)) return [];
+            return tasks.slice(0, MAX_TASKS).map(task => ({
+                text: task?.text || '',
+                completed: Boolean(task?.completed),
+                dbId: task?.dbId || task?.db_id || null
+            }));
+        }
+
+        function applyServerPlanning(planning, target) {
+            if (!planning) return;
+            const dateStamp = new Date().toDateString();
+            const oneThingKey = target === 'today' ? 'oneThing' : 'oneThingTomorrow';
+            const oneThingDateKey = oneThingKey + 'Date';
+            const tasksKey = target === 'today' ? 'dailyTasks' : 'dailyTasksTomorrow';
+            const tasksDateKey = tasksKey + 'Date';
+
+            if (planning.one_thing !== null && planning.one_thing !== undefined) {
+                localStorage.setItem(oneThingKey, planning.one_thing || '');
+                localStorage.setItem(oneThingDateKey, dateStamp);
+            }
+
+            if (planning.tasks !== null && planning.tasks !== undefined) {
+                const tasks = normalizeServerTasks(planning.tasks);
+                localStorage.setItem(tasksKey, JSON.stringify(tasks));
+                localStorage.setItem(tasksDateKey, dateStamp);
+            }
+        }
+
+        async function syncDailyPlanningFromServer() {
+            try {
+                const todayIso = new Date().toISOString().split('T')[0];
+                const tomorrowDate = new Date();
+                tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+                const tomorrowIso = tomorrowDate.toISOString().split('T')[0];
+
+                const [todayRes, tomorrowRes] = await Promise.all([
+                    fetch(`/api/daily-planning?date=${todayIso}`),
+                    fetch(`/api/daily-planning?date=${tomorrowIso}`)
+                ]);
+
+                if (todayRes.ok) {
+                    const todayPlanning = await todayRes.json();
+                    applyServerPlanning(todayPlanning, 'today');
+                }
+                if (tomorrowRes.ok) {
+                    const tomorrowPlanning = await tomorrowRes.json();
+                    applyServerPlanning(tomorrowPlanning, 'tomorrow');
+                }
+
+                loadOneThing();
+                loadDailyTasks();
+                renderDailyTasks();
+            } catch (error) {
+                console.error('Failed to load planning from server:', error);
+            }
+        }
+
         // Daily Tasks
         const MAX_TASKS = 3;
         let dailyTasks = [];
@@ -1721,6 +1790,7 @@
         loadOneThing();
         loadDailyTasks();
         renderDailyTasks();
+        syncDailyPlanningFromServer();
 
         function setView(view) {
             currentView = view;

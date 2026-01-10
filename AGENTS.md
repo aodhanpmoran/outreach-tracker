@@ -29,4 +29,5 @@
 ## Security & Configuration Tips
 - Do not commit secrets; use environment variables for Supabase and Resend credentials.
 - Telegram summaries require `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` env vars.
+- Telegram planning webhook uses `/api/telegram-webhook`; set `TELEGRAM_WEBHOOK_SECRET` to validate `X-Telegram-Bot-Api-Secret-Token`.
 - When adding cron endpoints, update `vercel.json` and document new env vars or schedules.
