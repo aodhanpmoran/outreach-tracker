@@ -9,6 +9,50 @@ def get_supabase():
     key = os.environ.get("SUPABASE_KEY")
     return create_client(url, key)
 
+def normalize_tasks(raw_tasks):
+    if raw_tasks is None:
+        return []
+
+    if isinstance(raw_tasks, str):
+        try:
+            raw_tasks = json.loads(raw_tasks) if raw_tasks else []
+        except json.JSONDecodeError:
+            return []
+
+    if not isinstance(raw_tasks, list):
+        return []
+
+    normalized = []
+    for item in raw_tasks:
+        if isinstance(item, dict):
+            normalized.append({
+                'text': item.get('text', ''),
+                'completed': bool(item.get('completed', False)),
+                'dbId': item.get('dbId') or item.get('db_id')
+            })
+        elif isinstance(item, str):
+            normalized.append({
+                'text': item,
+                'completed': False,
+                'dbId': None
+            })
+    return normalized
+
+def ensure_task_history(supabase, tasks, date_str):
+    updated = []
+    for task in tasks:
+        task['completed'] = False
+        if task.get('text') and not task.get('dbId'):
+            response = supabase.table('tasks').insert({
+                'text': task['text'],
+                'completed': False,
+                'date_entered': date_str
+            }).execute()
+            if response.data:
+                task['dbId'] = response.data[0].get('id')
+        updated.append(task)
+    return updated
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         """Migrate yesterday's tomorrow planning to today at midnight"""
@@ -39,10 +83,8 @@ class handler(BaseHTTPRequestHandler):
 
             # If today already has planning, reset completion status
             if today_data:
-                tasks = json.loads(today_data.get('tasks', '[]'))
-                # Reset all tasks to uncompleted
-                for task in tasks:
-                    task['completed'] = False
+                tasks = normalize_tasks(today_data.get('tasks'))
+                tasks = ensure_task_history(supabase, tasks, today)
 
                 # Update today's planning with reset tasks
                 supabase.table('daily_planning').update({
