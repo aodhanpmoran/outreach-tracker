@@ -1,7 +1,8 @@
 from http.server import BaseHTTPRequestHandler
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
+from urllib.parse import urlparse, parse_qs
 from supabase import create_client
 
 def get_supabase():
@@ -48,28 +49,43 @@ def find_existing_task_id(supabase, date_str, text):
 
 def ensure_task_history(supabase, tasks, date_str):
     updated = []
+    inserted = 0
+    linked = 0
+    now = datetime.now(timezone.utc).isoformat()
+
     for task in tasks:
-        task['completed'] = False
-        if task.get('text') and not task.get('dbId'):
-            existing_id = find_existing_task_id(supabase, date_str, task['text'])
+        text = task.get('text', '').strip()
+        if not text:
+            updated.append(task)
+            continue
+
+        task_id = task.get('dbId')
+        if not task_id:
+            existing_id = find_existing_task_id(supabase, date_str, text)
             if existing_id:
                 task['dbId'] = existing_id
+                linked += 1
             else:
-                response = supabase.table('tasks').insert({
-                    'text': task['text'],
-                    'completed': False,
+                payload = {
+                    'text': text,
+                    'completed': bool(task.get('completed', False)),
                     'date_entered': date_str
-                }).execute()
+                }
+                if payload['completed']:
+                    payload['completed_at'] = now
+                response = supabase.table('tasks').insert(payload).execute()
                 if response.data:
                     task['dbId'] = response.data[0].get('id')
+                    inserted += 1
+
         updated.append(task)
-    return updated
+
+    return updated, inserted, linked
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        """Migrate yesterday's tomorrow planning to today at midnight"""
+        """Backfill missing tasks into history from daily_planning."""
         try:
-            # Verify cron secret (optional security)
             auth_header = self.headers.get('Authorization')
             cron_secret = os.environ.get('CRON_SECRET')
 
@@ -80,39 +96,54 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({'error': 'Unauthorized'}).encode())
                 return
 
+            query = parse_qs(urlparse(self.path).query)
+            from_date = query.get('from', [None])[0]
+            to_date = query.get('to', [None])[0]
+
             supabase = get_supabase()
+            planning_query = supabase.table('daily_planning').select('*')
+            if from_date:
+                planning_query = planning_query.gte('date', from_date)
+            if to_date:
+                planning_query = planning_query.lte('date', to_date)
 
-            today = datetime.now().date().isoformat()
-            yesterday = (datetime.now().date() - timedelta(days=1)).isoformat()
+            response = planning_query.order('date', desc=False).execute()
+            rows = response.data or []
 
-            # Get yesterday's planning (contains yesterday's actual tasks)
-            yesterday_response = supabase.table('daily_planning').select('*').eq('date', yesterday).execute()
-            yesterday_data = yesterday_response.data[0] if yesterday_response.data else None
+            totals = {
+                'planning_rows': 0,
+                'tasks_checked': 0,
+                'tasks_inserted': 0,
+                'tasks_linked': 0,
+                'rows_updated': 0
+            }
 
-            # Get today's planning (was planned as "tomorrow" yesterday)
-            today_response = supabase.table('daily_planning').select('*').eq('date', today).execute()
-            today_data = today_response.data[0] if today_response.data else None
+            for row in rows:
+                date_str = row.get('date')
+                tasks = normalize_tasks(row.get('tasks'))
+                totals['planning_rows'] += 1
+                totals['tasks_checked'] += len(tasks)
 
-            # If today already has planning, reset completion status
-            if today_data:
-                tasks = normalize_tasks(today_data.get('tasks'))
-                tasks = ensure_task_history(supabase, tasks, today)
+                updated_tasks, inserted, linked = ensure_task_history(supabase, tasks, date_str)
+                totals['tasks_inserted'] += inserted
+                totals['tasks_linked'] += linked
 
-                # Update today's planning with reset tasks
-                supabase.table('daily_planning').update({
-                    'tasks': json.dumps(tasks),
-                    'updated_at': datetime.now().isoformat()
-                }).eq('date', today).execute()
+                if json.dumps(tasks) != json.dumps(updated_tasks):
+                    supabase.table('daily_planning').update({
+                        'tasks': json.dumps(updated_tasks),
+                        'updated_at': datetime.now(timezone.utc).isoformat()
+                    }).eq('date', date_str).execute()
+                    totals['rows_updated'] += 1
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps({
                 'success': True,
-                'message': 'Tomorrow migrated to today',
-                'today_date': today
+                'totals': totals,
+                'from': from_date,
+                'to': to_date
             }).encode())
-
         except Exception as e:
             self.send_response(500)
             self.send_header('Content-type', 'application/json')

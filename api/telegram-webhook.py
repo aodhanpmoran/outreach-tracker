@@ -126,7 +126,16 @@ def send_telegram_message(chat_id, message):
     with urlopen(request, timeout=10) as response:
         return json.loads(response.read().decode('utf-8'))
 
+def find_existing_task(supabase, date_str, text):
+    if not text:
+        return None
+    response = supabase.table('tasks').select('id').eq('date_entered', date_str).eq('text', text).limit(1).execute()
+    if response.data:
+        return response.data[0].get('id')
+    return None
+
 def update_task_history(supabase, task, text, date_str):
+    old_text = task.get('text') or ''
     task['text'] = text
     task['completed'] = False
     task_id = task.get('dbId')
@@ -139,6 +148,26 @@ def update_task_history(supabase, task, text, date_str):
             'completed_at': None,
             'updated_at': now
         }).eq('id', task_id).execute()
+        return task
+
+    if old_text:
+        existing_id = find_existing_task(supabase, date_str, old_text)
+        if existing_id:
+            task_id = existing_id
+
+    if not task_id:
+        existing_id = find_existing_task(supabase, date_str, text)
+        if existing_id:
+            task_id = existing_id
+
+    if task_id:
+        supabase.table('tasks').update({
+            'text': text,
+            'completed': False,
+            'completed_at': None,
+            'updated_at': now
+        }).eq('id', task_id).execute()
+        task['dbId'] = task_id
         return task
 
     response = supabase.table('tasks').insert({
