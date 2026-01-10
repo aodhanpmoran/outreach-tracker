@@ -4,6 +4,8 @@ import os
 from datetime import datetime, timedelta
 from supabase import create_client
 import resend
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 def get_supabase():
     url = os.environ.get("SUPABASE_URL")
@@ -131,6 +133,84 @@ def build_email_html(stats, planning):
     </div>
     """
 
+def build_telegram_message(stats, planning):
+    status_labels = {
+        'new': 'New',
+        'contacted': 'Contacted',
+        'responded': 'Responded',
+        'call_scheduled': 'Call Scheduled',
+        'closed': 'Closed',
+        'lost': 'Lost'
+    }
+
+    lines = [
+        "Daily Outreach Summary",
+        "",
+        f"Total prospects: {stats['total']}",
+        f"Conversion rate: {stats['conversion_rate']}%",
+        "",
+        "Pipeline:"
+    ]
+
+    for status, label in status_labels.items():
+        count = stats['by_status'].get(status, 0)
+        lines.append(f"- {label}: {count}")
+
+    yesterday = planning.get('yesterday') or {}
+    if yesterday.get('tasks'):
+        yesterday_tasks = json.loads(yesterday.get('tasks') or '[]')
+        completed_tasks = [t for t in yesterday_tasks if t.get('completed') and t.get('text')]
+        if completed_tasks:
+            lines.append("")
+            lines.append("Completed yesterday:")
+            lines.extend([f"- {t['text']}" for t in completed_tasks])
+
+    today = planning.get('today') or {}
+    today_one_thing = today.get('one_thing') or ""
+    if today_one_thing or today.get('tasks'):
+        lines.append("")
+        lines.append("Today's focus:")
+        if today_one_thing:
+            lines.append(f"- One thing: {today_one_thing}")
+        today_tasks = json.loads(today.get('tasks') or '[]')
+        for task in today_tasks:
+            if task.get('text'):
+                lines.append(f"- {task['text']}")
+
+    lines.extend([
+        "",
+        "Goal: EUR 5k -> EUR 10k for Paula & the kids"
+    ])
+
+    return "\n".join(lines)
+
+def send_telegram_message(message):
+    token = os.environ.get('TELEGRAM_BOT_TOKEN')
+    chat_id = os.environ.get('TELEGRAM_CHAT_ID')
+    if not token or not chat_id:
+        return {
+            'success': False,
+            'skipped': True,
+            'error': 'Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID'
+        }
+
+    payload = urlencode({
+        'chat_id': chat_id,
+        'text': message,
+        'disable_web_page_preview': 'true'
+    }).encode('utf-8')
+
+    request = Request(
+        f"https://api.telegram.org/bot{token}/sendMessage",
+        data=payload,
+        headers={'Content-Type': 'application/x-www-form-urlencoded'}
+    )
+
+    with urlopen(request, timeout=10) as response:
+        body = response.read().decode('utf-8')
+
+    return json.loads(body)
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
@@ -160,12 +240,23 @@ class handler(BaseHTTPRequestHandler):
                 "html": build_email_html(stats, planning)
             })
 
+            telegram_result = {}
+            try:
+                telegram_message = build_telegram_message(stats, planning)
+                telegram_result = send_telegram_message(telegram_message)
+            except Exception as telegram_error:
+                telegram_result = {
+                    'success': False,
+                    'error': str(telegram_error)
+                }
+
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps({
                 'success': True,
                 'email_id': email_response.get('id') if isinstance(email_response, dict) else str(email_response),
+                'telegram': telegram_result,
                 'stats': stats
             }).encode())
 
