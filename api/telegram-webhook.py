@@ -14,6 +14,93 @@ def get_supabase():
     key = os.environ.get("SUPABASE_KEY")
     return create_client(url, key)
 
+def get_stats(supabase):
+    prospects = supabase.table('prospects').select('*').execute()
+    all_prospects = prospects.data
+
+    status_counts = {}
+    for p in all_prospects:
+        status = p.get('status', 'new')
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+    total = len(all_prospects)
+    closed = status_counts.get('closed', 0)
+
+    return {
+        'total': total,
+        'by_status': status_counts,
+        'conversion_rate': round((closed / total * 100), 1) if total > 0 else 0
+    }
+
+def get_daily_planning(supabase):
+    today = datetime.now().date().isoformat()
+    yesterday = (datetime.now().date() - timedelta(days=1)).isoformat()
+
+    # Get yesterday's planning
+    yesterday_response = supabase.table('daily_planning').select('*').eq('date', yesterday).execute()
+    yesterday_data = yesterday_response.data[0] if yesterday_response.data else None
+
+    # Get today's planning
+    today_response = supabase.table('daily_planning').select('*').eq('date', today).execute()
+    today_data = today_response.data[0] if today_response.data else None
+
+    return {
+        'yesterday': yesterday_data,
+        'today': today_data
+    }
+
+def build_daily_update_message(stats, planning):
+    status_labels = {
+        'new': 'New',
+        'contacted': 'Contacted',
+        'responded': 'Responded',
+        'call_scheduled': 'Call Scheduled',
+        'closed': 'Closed',
+        'lost': 'Lost'
+    }
+
+    lines = [
+        "📊 Daily Outreach Update",
+        "",
+        f"Total prospects: {stats['total']}",
+        f"Conversion rate: {stats['conversion_rate']}%",
+        "",
+        "Pipeline:"
+    ]
+
+    for status, label in status_labels.items():
+        count = stats['by_status'].get(status, 0)
+        lines.append(f"- {label}: {count}")
+
+    yesterday = planning.get('yesterday') or {}
+    if yesterday.get('tasks'):
+        yesterday_tasks = json.loads(yesterday.get('tasks') or '[]')
+        completed_tasks = [t for t in yesterday_tasks if t.get('completed') and t.get('text')]
+        if completed_tasks:
+            lines.append("")
+            lines.append("✅ Completed yesterday:")
+            lines.extend([f"- {t['text']}" for t in completed_tasks])
+
+    today = planning.get('today') or {}
+    today_one_thing = today.get('one_thing') or ""
+    if today_one_thing or today.get('tasks'):
+        lines.append("")
+        lines.append("🎯 Today's focus:")
+        if today_one_thing:
+            lines.append(f"- One thing: {today_one_thing}")
+        today_tasks = json.loads(today.get('tasks') or '[]')
+        for task in today_tasks:
+            if task.get('text'):
+                status_icon = "✓" if task.get('completed') else "•"
+                lines.append(f"{status_icon} {task['text']}")
+
+    lines.extend([
+        "",
+        "💰 Goal: EUR 5k → EUR 10k for Paula & the kids"
+    ])
+
+    return "\n".join(lines)
+
 def normalize_tasks(raw_tasks):
     if raw_tasks is None:
         return []
@@ -284,6 +371,26 @@ class handler(BaseHTTPRequestHandler):
                 self.send_header('Content-type', 'application/json')
                 self.end_headers()
                 self.wfile.write(json.dumps({'error': 'Forbidden'}).encode())
+                return
+
+            # Check if this is an "update" command
+            if text.strip().lower() in ['update', '/update']:
+                supabase = get_supabase()
+                stats = get_stats(supabase)
+                planning = get_daily_planning(supabase)
+                daily_update_message = build_daily_update_message(stats, planning)
+
+                if chat_id:
+                    send_telegram_message(chat_id, daily_update_message)
+
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    'success': True,
+                    'command': 'update',
+                    'stats': stats
+                }).encode())
                 return
 
             updates, ignored = parse_updates(text)
