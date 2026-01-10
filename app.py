@@ -27,6 +27,18 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            text TEXT NOT NULL,
+            completed INTEGER DEFAULT 0,
+            completed_at TIMESTAMP,
+            date_entered DATE DEFAULT (date('now')),
+            date_scheduled DATE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -126,6 +138,155 @@ def get_stats():
              max(total - status_counts.get('new', 0), 1) * 100), 1
         ) if total > status_counts.get('new', 0) else 0
     })
+
+# Tasks API
+@app.route('/api/tasks', methods=['GET'])
+def get_tasks():
+    conn = get_db()
+    date_entered = request.args.get('date_entered')
+    completed = request.args.get('completed')
+
+    query = 'SELECT * FROM tasks'
+    params = []
+    conditions = []
+
+    if date_entered:
+        conditions.append('date_entered = ?')
+        params.append(date_entered)
+    if completed is not None:
+        conditions.append('completed = ?')
+        params.append(1 if completed.lower() == 'true' else 0)
+
+    if conditions:
+        query += ' WHERE ' + ' AND '.join(conditions)
+
+    query += ' ORDER BY date_entered DESC, created_at DESC'
+
+    tasks = conn.execute(query, params).fetchall()
+    conn.close()
+
+    result = []
+    for t in tasks:
+        task_dict = dict(t)
+        task_dict['completed'] = bool(task_dict['completed'])
+        result.append(task_dict)
+
+    return jsonify(result)
+
+@app.route('/api/tasks', methods=['POST'])
+def add_task():
+    data = request.json
+    conn = get_db()
+    cursor = conn.execute('''
+        INSERT INTO tasks (text, completed, date_entered, date_scheduled)
+        VALUES (?, ?, ?, ?)
+    ''', (
+        data.get('text'),
+        1 if data.get('completed') else 0,
+        data.get('date_entered', datetime.now().strftime('%Y-%m-%d')),
+        data.get('date_scheduled')
+    ))
+    conn.commit()
+    task_id = cursor.lastrowid
+    task = conn.execute('SELECT * FROM tasks WHERE id = ?', (task_id,)).fetchone()
+    conn.close()
+    task_dict = dict(task)
+    task_dict['completed'] = bool(task_dict['completed'])
+    return jsonify(task_dict)
+
+@app.route('/api/task', methods=['GET'])
+def get_task():
+    task_id = request.args.get('id')
+    if not task_id:
+        return jsonify({'error': 'Missing id parameter'}), 400
+
+    conn = get_db()
+    task = conn.execute('SELECT * FROM tasks WHERE id = ?', (task_id,)).fetchone()
+    conn.close()
+
+    if task:
+        task_dict = dict(task)
+        task_dict['completed'] = bool(task_dict['completed'])
+        return jsonify(task_dict)
+    return jsonify(None)
+
+@app.route('/api/task', methods=['PUT'])
+def update_task():
+    task_id = request.args.get('id')
+    if not task_id:
+        return jsonify({'error': 'Missing id parameter'}), 400
+
+    data = request.json
+    conn = get_db()
+
+    completed_at = None
+    if data.get('completed'):
+        completed_at = datetime.now().isoformat()
+
+    conn.execute('''
+        UPDATE tasks
+        SET text = ?, completed = ?, completed_at = ?, date_scheduled = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ''', (
+        data.get('text'),
+        1 if data.get('completed') else 0,
+        completed_at,
+        data.get('date_scheduled'),
+        task_id
+    ))
+    conn.commit()
+    task = conn.execute('SELECT * FROM tasks WHERE id = ?', (task_id,)).fetchone()
+    conn.close()
+
+    if task:
+        task_dict = dict(task)
+        task_dict['completed'] = bool(task_dict['completed'])
+        return jsonify(task_dict)
+    return jsonify(None)
+
+@app.route('/api/task', methods=['PATCH'])
+def patch_task():
+    task_id = request.args.get('id')
+    if not task_id:
+        return jsonify({'error': 'Missing id parameter'}), 400
+
+    data = request.json
+    conn = get_db()
+
+    completed_at = None
+    if data.get('completed'):
+        completed_at = datetime.now().isoformat()
+
+    conn.execute('''
+        UPDATE tasks
+        SET completed = ?, completed_at = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ''', (
+        1 if data.get('completed') else 0,
+        completed_at,
+        task_id
+    ))
+    conn.commit()
+    task = conn.execute('SELECT * FROM tasks WHERE id = ?', (task_id,)).fetchone()
+    conn.close()
+
+    if task:
+        task_dict = dict(task)
+        task_dict['completed'] = bool(task_dict['completed'])
+        return jsonify(task_dict)
+    return jsonify(None)
+
+@app.route('/api/task', methods=['DELETE'])
+def delete_task():
+    task_id = request.args.get('id')
+    if not task_id:
+        return jsonify({'error': 'Missing id parameter'}), 400
+
+    conn = get_db()
+    conn.execute('DELETE FROM tasks WHERE id = ?', (task_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
 
 if __name__ == '__main__':
     init_db()

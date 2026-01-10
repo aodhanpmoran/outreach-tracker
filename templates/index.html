@@ -774,6 +774,279 @@
         .planning-mode-banner.active {
             display: block;
         }
+
+        /* Task History Panel */
+        .history-btn {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            color: #888;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .history-btn:hover {
+            background: #252525;
+            color: #e0e0e0;
+            border-color: #333;
+        }
+
+        .history-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .history-panel {
+            position: fixed;
+            top: 0;
+            right: -480px;
+            width: 480px;
+            height: 100vh;
+            background: #0f0f0f;
+            border-left: 1px solid #2a2a2a;
+            z-index: 150;
+            transition: right 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            box-shadow: -8px 0 32px rgba(0, 0, 0, 0.5);
+        }
+
+        .history-panel.active {
+            right: 0;
+        }
+
+        .history-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 140;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .history-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .history-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #2a2a2a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .history-close {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .history-close:hover {
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+
+        .history-filters {
+            padding: 16px 24px;
+            border-bottom: 1px solid #2a2a2a;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .history-filter {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            color: #888;
+            padding: 8px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .history-filter:hover {
+            border-color: #444;
+            color: #e0e0e0;
+        }
+
+        .history-filter.active {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: white;
+        }
+
+        .history-filter.completed.active {
+            background: #22c55e;
+            border-color: #22c55e;
+        }
+
+        .history-stats {
+            padding: 16px 24px;
+            background: #1a1a1a;
+            display: flex;
+            gap: 24px;
+        }
+
+        .history-stat {
+            text-align: center;
+        }
+
+        .history-stat-value {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .history-stat-value.green { color: #22c55e; }
+        .history-stat-value.blue { color: #3b82f6; }
+        .history-stat-value.yellow { color: #f59e0b; }
+
+        .history-stat-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .history-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 24px;
+        }
+
+        .history-date-group {
+            margin-bottom: 24px;
+        }
+
+        .history-date {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #1a1a1a;
+        }
+
+        .history-task {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 16px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+        }
+
+        .history-task:hover {
+            background: #252525;
+        }
+
+        .history-task-status {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 2px;
+        }
+
+        .history-task-status.completed {
+            background: #22c55e;
+        }
+
+        .history-task-status.completed::after {
+            content: '✓';
+            color: #000;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .history-task-status.pending {
+            background: #333;
+            border: 2px solid #444;
+        }
+
+        .history-task-text {
+            flex: 1;
+            line-height: 1.5;
+        }
+
+        .history-task.is-completed .history-task-text {
+            color: #666;
+            text-decoration: line-through;
+        }
+
+        .history-task-meta {
+            font-size: 11px;
+            color: #555;
+            margin-top: 4px;
+        }
+
+        .history-task-delete {
+            background: transparent;
+            border: 1px solid #2a2a2a;
+            color: #9ca3af;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .history-task-delete:hover {
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+
+        .history-empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: #555;
+        }
+
+        .history-empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .history-loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        @media (max-width: 520px) {
+            .history-panel {
+                width: 100%;
+                right: -100%;
+            }
+        }
     </style>
 </head>
 <body>
@@ -788,6 +1061,13 @@
         <header>
             <h1>Outreach Tracker</h1>
             <div class="header-actions">
+                <button class="history-btn" onclick="openHistory()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    History
+                </button>
                 <div class="view-toggle">
                     <button id="btnPipeline" class="active" onclick="setView('pipeline')">Pipeline</button>
                     <button id="btnList" onclick="setView('list')">List</button>
@@ -1286,7 +1566,7 @@
         function addDailyTask() {
             const tasks = getCurrentTasks();
             if (tasks.length >= MAX_TASKS) return;
-            tasks.push({ text: '', completed: false });
+            tasks.push({ text: '', completed: false, dbId: null });
             setCurrentTasks(tasks);
             saveDailyTasks();
             renderDailyTasks();
@@ -1297,19 +1577,58 @@
             }, 10);
         }
 
-        function updateDailyTask(index, text) {
+        async function updateDailyTask(index, text) {
             const tasks = getCurrentTasks();
+            const oldText = tasks[index].text;
             tasks[index].text = text;
             setCurrentTasks(tasks);
             saveDailyTasks();
+
+            // Save to database if text is not empty and this is for today
+            if (currentDayView === 'today' && text.trim() !== '') {
+                if (!tasks[index].dbId && oldText.trim() === '') {
+                    // New task - create in database
+                    const saved = await saveTaskToDb(text, tasks[index].completed);
+                    if (saved && saved.id) {
+                        tasks[index].dbId = saved.id;
+                        setCurrentTasks(tasks);
+                        saveDailyTasks();
+                    }
+                } else if (tasks[index].dbId) {
+                    // Existing task - update text in database
+                    try {
+                        await fetch(`/api/task?id=${tasks[index].dbId}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ text: text, completed: tasks[index].completed })
+                        });
+                    } catch (error) {
+                        console.error('Failed to update task:', error);
+                    }
+                }
+            }
         }
 
-        function toggleDailyTask(index) {
+        async function toggleDailyTask(index) {
             const tasks = getCurrentTasks();
             tasks[index].completed = !tasks[index].completed;
             setCurrentTasks(tasks);
             saveDailyTasks();
             renderDailyTasks();
+
+            // Persist for history even if the task hasn't been saved yet
+            if (currentDayView === 'today' && tasks[index].text.trim() !== '') {
+                if (!tasks[index].dbId) {
+                    const saved = await saveTaskToDb(tasks[index].text, tasks[index].completed);
+                    if (saved && saved.id) {
+                        tasks[index].dbId = saved.id;
+                        setCurrentTasks(tasks);
+                        saveDailyTasks();
+                    }
+                } else {
+                    await updateTaskInDb(tasks[index].dbId, tasks[index].completed);
+                }
+            }
 
             // Check if all tasks are completed (only for today)
             if (currentDayView === 'today') {
@@ -1322,12 +1641,25 @@
             }
         }
 
-        function deleteDailyTask(index) {
+        async function deleteDailyTask(index) {
             const tasks = getCurrentTasks();
+            const task = tasks[index];
             tasks.splice(index, 1);
             setCurrentTasks(tasks);
             saveDailyTasks();
             renderDailyTasks();
+
+            // Keep a history record for today's tasks, even when removed from the list
+            if (currentDayView === 'today' && task.text.trim() !== '') {
+                if (!task.dbId) {
+                    const saved = await saveTaskToDb(task.text, task.completed);
+                    if (saved && saved.id) {
+                        task.dbId = saved.id;
+                    }
+                } else {
+                    await updateTaskInDb(task.dbId, task.completed);
+                }
+            }
         }
 
         function showCelebration() {
@@ -1702,6 +2034,216 @@
                 }));
             }
         });
+
+        // Task History Panel
+        let allTasks = [];
+        let historyFilter = 'all';
+
+        function openHistory() {
+            document.getElementById('historyPanel').classList.add('active');
+            document.getElementById('historyOverlay').classList.add('active');
+            document.body.style.overflow = 'hidden';
+            loadTaskHistory();
+        }
+
+        function closeHistory() {
+            document.getElementById('historyPanel').classList.remove('active');
+            document.getElementById('historyOverlay').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        async function loadTaskHistory() {
+            const content = document.getElementById('historyContent');
+            content.innerHTML = '<div class="history-loading">Loading tasks...</div>';
+
+            try {
+                const res = await fetch('/api/tasks');
+                allTasks = await res.json();
+                updateHistoryStats();
+                renderTaskHistory();
+            } catch (error) {
+                console.error('Failed to load task history:', error);
+                content.innerHTML = '<div class="history-empty"><div class="history-empty-icon">!</div><p>Failed to load tasks</p></div>';
+            }
+        }
+
+        function updateHistoryStats() {
+            const completed = allTasks.filter(t => t.completed).length;
+            const total = allTasks.length;
+            const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+            document.getElementById('historyCompleted').textContent = completed;
+            document.getElementById('historyTotal').textContent = total;
+            document.getElementById('historyRate').textContent = rate + '%';
+        }
+
+        function setHistoryFilter(filter) {
+            historyFilter = filter;
+            document.querySelectorAll('.history-filter').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.filter === filter);
+            });
+            renderTaskHistory();
+        }
+
+        function renderTaskHistory() {
+            const content = document.getElementById('historyContent');
+            let tasks = [...allTasks];
+
+            // Apply filter
+            if (historyFilter === 'completed') {
+                tasks = tasks.filter(t => t.completed);
+            } else if (historyFilter === 'pending') {
+                tasks = tasks.filter(t => !t.completed);
+            }
+
+            if (tasks.length === 0) {
+                content.innerHTML = `
+                    <div class="history-empty">
+                        <div class="history-empty-icon">📋</div>
+                        <p>${historyFilter === 'all' ? 'No tasks yet' : 'No ' + historyFilter + ' tasks'}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Group by date
+            const grouped = {};
+            tasks.forEach(task => {
+                const rawDate = task.date_entered || task.created_at || '';
+                const date = typeof rawDate === 'string'
+                    ? rawDate.split('T')[0].split(' ')[0]
+                    : '';
+                if (!grouped[date]) grouped[date] = [];
+                grouped[date].push(task);
+            });
+
+            // Sort dates descending
+            const sortedDates = Object.keys(grouped).sort((a, b) => new Date(b) - new Date(a));
+
+            let html = '';
+            sortedDates.forEach(date => {
+                const dateObj = new Date(date + 'T00:00:00');
+                const todayStr = new Date().toISOString().split('T')[0];
+                const yesterdayDate = new Date();
+                yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+                const yesterdayStr = yesterdayDate.toISOString().split('T')[0];
+
+                let dateLabel;
+                if (!date || Number.isNaN(dateObj.getTime())) {
+                    dateLabel = 'Unknown date';
+                } else if (date === todayStr) {
+                    const readable = dateObj.toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                    });
+                    dateLabel = `Today · ${readable}`;
+                } else if (date === yesterdayStr) {
+                    const readable = dateObj.toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                    });
+                    dateLabel = `Yesterday · ${readable}`;
+                } else {
+                    dateLabel = dateObj.toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                    });
+                }
+
+                html += `<div class="history-date-group">`;
+                html += `<div class="history-date">${dateLabel}</div>`;
+
+                grouped[date].forEach(task => {
+                    const completedClass = task.completed ? 'is-completed' : '';
+                    const statusClass = task.completed ? 'completed' : 'pending';
+                    let meta = '';
+                    if (task.completed && task.completed_at) {
+                        const completedTime = new Date(task.completed_at).toLocaleTimeString('en-US', {
+                            hour: 'numeric',
+                            minute: '2-digit'
+                        });
+                        meta = `Completed at ${completedTime}`;
+                    }
+
+                    const deleteButton = task.id
+                        ? `<button class="history-task-delete" onclick="deleteHistoryTask(${task.id})">Delete</button>`
+                        : '';
+
+                    html += `
+                        <div class="history-task ${completedClass}">
+                            <div class="history-task-status ${statusClass}"></div>
+                            <div class="history-task-text">
+                                ${escapeHtml(task.text)}
+                                ${meta ? `<div class="history-task-meta">${meta}</div>` : ''}
+                            </div>
+                            ${deleteButton}
+                        </div>
+                    `;
+                });
+
+                html += `</div>`;
+            });
+
+            content.innerHTML = html;
+        }
+
+        // Save task to database
+        async function saveTaskToDb(text, completed = false) {
+            try {
+                const res = await fetch('/api/tasks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        text: text,
+                        completed: completed,
+                        date_entered: new Date().toISOString().split('T')[0]
+                    })
+                });
+                return await res.json();
+            } catch (error) {
+                console.error('Failed to save task:', error);
+                return null;
+            }
+        }
+
+        // Update task in database
+        async function updateTaskInDb(id, completed) {
+            try {
+                await fetch(`/api/task?id=${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ completed: completed })
+                });
+            } catch (error) {
+                console.error('Failed to update task:', error);
+            }
+        }
+
+        async function deleteHistoryTask(id) {
+            if (!confirm('Delete this task from history?')) return;
+            try {
+                await fetch(`/api/task?id=${id}`, { method: 'DELETE' });
+                allTasks = allTasks.filter(task => task.id !== id);
+                updateHistoryStats();
+                renderTaskHistory();
+            } catch (error) {
+                console.error('Failed to delete task:', error);
+            }
+        }
+
+        // Close history with Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const historyPanel = document.getElementById('historyPanel');
+                if (historyPanel.classList.contains('active')) {
+                    closeHistory();
+                }
+            }
+        });
     </script>
 
     <!-- Celebration Overlay -->
@@ -1711,6 +2253,42 @@
             <div class="celebration-title">YOU CRUSHED IT!</div>
             <div class="celebration-subtitle">All tasks complete. You're unstoppable.</div>
             <button class="celebration-btn" onclick="closeCelebration()">Keep Going</button>
+        </div>
+    </div>
+
+    <!-- History Panel -->
+    <div class="history-overlay" id="historyOverlay" onclick="closeHistory()"></div>
+    <div class="history-panel" id="historyPanel">
+        <div class="history-header">
+            <h2 class="history-title">Task History</h2>
+            <button class="history-close" onclick="closeHistory()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div class="history-filters">
+            <button class="history-filter active" data-filter="all" onclick="setHistoryFilter('all')">All Tasks</button>
+            <button class="history-filter completed" data-filter="completed" onclick="setHistoryFilter('completed')">Completed</button>
+            <button class="history-filter" data-filter="pending" onclick="setHistoryFilter('pending')">Pending</button>
+        </div>
+        <div class="history-stats" id="historyStats">
+            <div class="history-stat">
+                <div class="history-stat-value green" id="historyCompleted">0</div>
+                <div class="history-stat-label">Completed</div>
+            </div>
+            <div class="history-stat">
+                <div class="history-stat-value blue" id="historyTotal">0</div>
+                <div class="history-stat-label">Total</div>
+            </div>
+            <div class="history-stat">
+                <div class="history-stat-value yellow" id="historyRate">0%</div>
+                <div class="history-stat-label">Completion</div>
+            </div>
+        </div>
+        <div class="history-content" id="historyContent">
+            <div class="history-loading">Loading tasks...</div>
         </div>
     </div>
 </body>
