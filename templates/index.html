@@ -467,6 +467,130 @@
             color: #888;
         }
 
+        /* Weekly Readings */
+        .readings-indicator {
+            margin-bottom: 24px;
+        }
+
+        .readings-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .readings-header:hover {
+            border-color: #3a3a3a;
+        }
+
+        .readings-header.expanded {
+            border-radius: 6px 6px 0 0;
+            border-bottom-color: transparent;
+        }
+
+        .readings-toggle {
+            color: #555;
+            font-size: 10px;
+            transition: transform 0.2s;
+        }
+
+        .readings-header.expanded .readings-toggle {
+            transform: rotate(90deg);
+        }
+
+        .readings-week {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .readings-count {
+            font-size: 12px;
+            color: #555;
+            margin-left: auto;
+        }
+
+        .readings-progress {
+            color: #4ade80;
+        }
+
+        .readings-list {
+            display: none;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            padding: 12px 16px;
+        }
+
+        .readings-list.expanded {
+            display: block;
+        }
+
+        .reading-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #252525;
+        }
+
+        .reading-item:last-child {
+            border-bottom: none;
+        }
+
+        .reading-checkbox {
+            width: 16px;
+            height: 16px;
+            border: 1px solid #444;
+            border-radius: 3px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-top: 2px;
+            transition: all 0.2s;
+        }
+
+        .reading-checkbox:hover {
+            border-color: #666;
+        }
+
+        .reading-checkbox.checked {
+            background: #4ade80;
+            border-color: #4ade80;
+        }
+
+        .reading-checkbox.checked::after {
+            content: '\2713';
+            color: #000;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .reading-item.completed .reading-text {
+            text-decoration: line-through;
+            color: #555;
+        }
+
+        .reading-text {
+            font-size: 12px;
+            color: #999;
+            line-height: 1.4;
+        }
+
+        .reading-note {
+            font-size: 11px;
+            color: #666;
+            font-style: italic;
+            margin-top: 2px;
+        }
+
         /* Celebration overlay */
         .celebration {
             position: fixed;
@@ -1050,6 +1174,18 @@
             </div>
         </div>
 
+        <!-- Weekly Readings Indicator -->
+        <div class="readings-indicator" id="readingsIndicator">
+            <div class="readings-header" id="readingsHeader" onclick="toggleReadings()">
+                <span class="readings-toggle">&#9654;</span>
+                <span class="readings-week" id="readingsWeek">Week 2</span>
+                <span class="readings-count" id="readingsCount">2 essential readings</span>
+            </div>
+            <div class="readings-list" id="readingsList">
+                <!-- Readings rendered by JS -->
+            </div>
+        </div>
+
         <div class="goal-section">
             <div class="goal-header">
                 <span style="font-weight: 600;">Goal: Close 3-5 new clients</span>
@@ -1230,6 +1366,147 @@
         };
 
         const PROSPECT_FIELDS = 'id,name,company,email,status,next_followup,updated_at';
+
+        // Weekly Readings Data
+        // First class date: Week 1 was Dec 31, 2025 (Wednesday)
+        const COURSE_START_DATE = new Date('2025-12-31');
+
+        const WEEKLY_READINGS = {
+            1: {
+                title: 'Developing a Sense of Self: Dibs',
+                readings: [
+                    { text: 'Axline, Virginia Mae (2022) Dibs in Search of Self: Personality Development in Play Therapy. London: Penguin Classics.' },
+                    { text: 'Axline, Virginia Mae (1971) Dibs, in Search of Self. Harmondsworth: Penguin Books.', note: 'Alternative if later edition not available' }
+                ]
+            },
+            2: {
+                title: 'Developing Counselling Skills: Silence, Listening and Responding',
+                readings: [
+                    { text: 'Coltart, Nina (1992) Slouching Towards Bethlehem. London: Free Association.', note: 'Chapter 6: "The Silent Patient"' },
+                    { text: 'Howard, Susan (2010) Skills in Psychodynamic Counselling and Psychotherapy. London: SAGE.' }
+                ]
+            },
+            3: {
+                title: 'Establishing and Challenging the Therapeutic Frame',
+                readings: [
+                    { text: 'Gray, Anne (1994) An Introduction to the Therapeutic Frame. London: Routledge.', note: 'Chapter 1: "The Frame"' },
+                    { text: 'Gabbard, Glen O. (2016) Boundaries and Boundary Violations in Psychoanalysis. 2nd ed. Arlington, VA: APA.', note: 'Chapter 5 only' },
+                    { text: 'Winnicott, D. W. (1992) Through Paediatrics to Psycho-analysis. London: Karnac.', note: 'Chapter XXV: "The Antisocial Tendency"' }
+                ]
+            },
+            4: {
+                title: 'Working with the Unknown',
+                readings: [
+                    { text: 'Gerrard, Jackie (2018) "Dilemmas of a Psychotherapist." In The Impossibility of Knowing.', note: 'Section 3, Chapter 9' },
+                    { text: 'Ogden, Thomas H. (1992) The Primitive Edge of Experience.', note: 'Chapter 7: "The Initial Analytic Meeting"' }
+                ]
+            },
+            5: {
+                title: 'Working with Anxiety',
+                readings: [
+                    { text: 'Curtis, Hannah (2015) "Anxiety." In Everyday Life and the Unconscious Mind.', note: 'Read before Freud lecture' },
+                    { text: 'Freud, Sigmund (2024) Revised Standard Edition.', note: 'Lecture XXXII, Vol. XXII' }
+                ]
+            },
+            6: {
+                title: 'Working with Difference',
+                readings: [
+                    { text: 'Wheeler, Sue (2006) Difference and Diversity in Counselling.', note: 'Part 1' }
+                ]
+            },
+            7: {
+                title: 'Working with Loss and Grief',
+                readings: [
+                    { text: 'Berzoff, Joan (2003) "Psychodynamic Theories in Grief and Bereavement." Smith College Studies in Social Work, 73 (3).' },
+                    { text: 'Fiorini et al. (2007) On Freud\'s \'Mourning and Melancholia\'.', note: 'Part 1 only' }
+                ]
+            },
+            8: {
+                title: 'Working with Guilt and Shame',
+                readings: [
+                    { text: 'Klein, Melanie (1998) Love, Guilt and Reparation.', note: '"Love, Guilt and Reparation" (1937)' },
+                    { text: 'Mollon, Phil (2018) "Shame and Jealousy."' },
+                    { text: 'Winnicott, D. W. (2018) "Psychoanalysis and the Sense of Guilt."' }
+                ]
+            },
+            9: {
+                title: 'Working with Rage and Anger',
+                readings: [
+                    { text: 'Noonan, Ellen & Noonan, Frederick (2008) "Surviving Rage."' },
+                    { text: 'Strozier et al. (2017) "Heinz Kohut\'s Theory of Aggression and Rage."' }
+                ]
+            },
+            10: {
+                title: 'Consolidation',
+                readings: []
+            }
+        };
+
+        function getCurrentReadingWeek() {
+            const now = new Date();
+            const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+            const weeksSinceStart = Math.floor((now - COURSE_START_DATE) / msPerWeek);
+            // Week N starts on the (N-1)th Wednesday after course start
+            // Readings automatically transition each Wednesday at midnight
+            const week = weeksSinceStart + 1;
+            return Math.max(1, Math.min(week, 10));
+        }
+
+        function getReadingsCompleted() {
+            const completed = localStorage.getItem('readingsCompleted');
+            return completed ? JSON.parse(completed) : {};
+        }
+
+        function setReadingCompleted(week, index, completed) {
+            const allCompleted = getReadingsCompleted();
+            if (!allCompleted[week]) allCompleted[week] = {};
+            allCompleted[week][index] = completed;
+            localStorage.setItem('readingsCompleted', JSON.stringify(allCompleted));
+            renderReadings();
+        }
+
+        function toggleReadings() {
+            const header = document.getElementById('readingsHeader');
+            const list = document.getElementById('readingsList');
+            header.classList.toggle('expanded');
+            list.classList.toggle('expanded');
+        }
+
+        function renderReadings() {
+            const week = getCurrentReadingWeek();
+            const weekData = WEEKLY_READINGS[week];
+            const completed = getReadingsCompleted()[week] || {};
+
+            document.getElementById('readingsWeek').textContent = `Week ${week}`;
+
+            const readings = weekData?.readings || [];
+            const completedCount = Object.values(completed).filter(Boolean).length;
+            const countEl = document.getElementById('readingsCount');
+
+            if (readings.length === 0) {
+                countEl.innerHTML = '<span class="readings-progress">No essential readings</span>';
+            } else if (completedCount === readings.length) {
+                countEl.innerHTML = `<span class="readings-progress">${completedCount}/${readings.length} done</span>`;
+            } else {
+                countEl.textContent = `${readings.length} essential reading${readings.length > 1 ? 's' : ''}`;
+            }
+
+            const listEl = document.getElementById('readingsList');
+            if (readings.length === 0) {
+                listEl.innerHTML = '<div class="reading-text" style="padding: 8px 0;">No essential readings this week. Review recommended texts from previous weeks.</div>';
+                return;
+            }
+
+            listEl.innerHTML = readings.map((r, i) => `
+                <div class="reading-item ${completed[i] ? 'completed' : ''}">
+                    <div class="reading-checkbox ${completed[i] ? 'checked' : ''}" onclick="setReadingCompleted(${week}, ${i}, ${!completed[i]})"></div>
+                    <div>
+                        <div class="reading-text">${r.text}</div>
+                        ${r.note ? `<div class="reading-note">${r.note}</div>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
 
         const today = new Date().toDateString();
 
@@ -1947,6 +2224,7 @@
 
         setupDropZones();
         loadProspects();
+        renderReadings();
 
         // Draggable Goal Window
         const goalFloat = document.getElementById('goalFloat');
