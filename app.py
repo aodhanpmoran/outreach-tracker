@@ -3,7 +3,7 @@ import sqlite3
 from datetime import datetime
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='public')
 DB_PATH = os.path.join(os.path.dirname(__file__), 'outreach.db')
 
 def get_db():
