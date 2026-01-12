@@ -359,8 +359,8 @@ class handler(BaseHTTPRequestHandler):
             since_date = datetime.now(timezone.utc) - timedelta(hours=24)
 
             response = requests.get(
-                'https://api.fathom.video/v1/calls',
-                headers={'Authorization': f'Bearer {api_key}'},
+                'https://api.fathom.ai/external/v1/meetings',
+                headers={'X-Api-Key': api_key},
                 params={'created_after': since_date.isoformat()},
                 timeout=30
             )
@@ -372,7 +372,7 @@ class handler(BaseHTTPRequestHandler):
             meetings = response.json()
 
             if isinstance(meetings, dict):
-                meetings_list = meetings.get('calls', meetings.get('data', []))
+                meetings_list = meetings.get('items', [])
             else:
                 meetings_list = meetings
 
@@ -381,7 +381,7 @@ class handler(BaseHTTPRequestHandler):
             existing_count = 0
 
             for meeting in meetings_list:
-                recording_id = meeting.get('id') or meeting.get('recording_id')
+                recording_id = meeting.get('recording_id') or meeting.get('id')
                 if not recording_id:
                     continue
 
