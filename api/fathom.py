@@ -160,13 +160,13 @@ def title_case_name(value):
     if not value:
         return None
     parts = []
-    for token in re.split(r'\\s+', value):
+    for token in re.split(r'\s+', value):
         if not token:
             continue
-        subparts = re.split(r'([\\-\\'\\u2019])', token)
+        subparts = re.split(r"([\-'\u2019])", token)
         rebuilt = ''
         for part in subparts:
-            if part in ['-', \"'\", '’']:
+            if part in ['-', "'", '’']:
                 rebuilt += part
             elif part:
                 rebuilt += part[:1].upper() + part[1:].lower()
@@ -179,9 +179,9 @@ def derive_name_from_email(email):
         return None
     local = email.split('@')[0]
     local = local.split('+')[0]
-    local = re.sub(r'[^a-zA-Z\\s._-]', ' ', local)
+    local = re.sub(r'[^a-zA-Z\s._-]', ' ', local)
     local = re.sub(r'[._-]+', ' ', local)
-    local = re.sub(r'\\s+', ' ', local).strip()
+    local = re.sub(r'\s+', ' ', local).strip()
     if not local:
         return None
     return title_case_name(local)
@@ -195,7 +195,7 @@ def infer_name_from_transcript(transcript, recorded_by_name):
         line = line.strip()
         if not line:
             continue
-        match = re.match(r\"^([A-Za-z][A-Za-z'\\u2019\\-\\.]+(?:\\s+[A-Za-z][A-Za-z'\\u2019\\-\\.]+){0,2})\\s*:\", line)
+        match = re.match(r"^([A-Za-z][A-Za-z'\u2019\-\.]+(?:\s+[A-Za-z][A-Za-z'\u2019\-\.]+){0,2})\s*:", line)
         if match:
             candidate = match.group(1).strip()
             if recorded_by_name and recorded_by_name in candidate.lower():
