@@ -110,6 +110,23 @@ ALTER TABLE fathom_action_items ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all operations" ON fathom_action_items;
 CREATE POLICY "Allow all operations" ON fathom_action_items FOR ALL USING (true);
 
+-- Fathom call participants table - links calls to multiple prospects
+CREATE TABLE IF NOT EXISTS fathom_call_participants (
+    id SERIAL PRIMARY KEY,
+    fathom_call_id INTEGER NOT NULL REFERENCES fathom_calls(id) ON DELETE CASCADE,
+    prospect_id INTEGER NOT NULL REFERENCES prospects(id) ON DELETE CASCADE,
+    source TEXT, -- 'calendar_invitees', 'attendees', 'invitees', 'transcript', 'recorded_by'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE (fathom_call_id, prospect_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fathom_call_participants_call_id ON fathom_call_participants(fathom_call_id);
+CREATE INDEX IF NOT EXISTS idx_fathom_call_participants_prospect_id ON fathom_call_participants(prospect_id);
+
+ALTER TABLE fathom_call_participants ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all operations" ON fathom_call_participants;
+CREATE POLICY "Allow all operations" ON fathom_call_participants FOR ALL USING (true);
+
 -- Fathom sync log table - tracks sync operations for debugging
 CREATE TABLE IF NOT EXISTS fathom_sync_log (
     id SERIAL PRIMARY KEY,

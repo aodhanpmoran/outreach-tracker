@@ -117,19 +117,39 @@ def get_recorded_by_name(meeting):
     return recorded_by.get('name')
 
 
+def get_excluded_emails():
+    raw = os.environ.get('EXCLUDE_EMAILS') or ''
+    return {e.strip().lower() for e in raw.split(',') if e.strip()}
+
+
+def is_excluded_email(email, recorded_by_email, excluded_emails):
+    if not email:
+        return False
+    email = email.lower()
+    if recorded_by_email and email == recorded_by_email.lower():
+        return True
+    if email in excluded_emails:
+        return True
+    return False
+
+
 def get_external_invitees(invitees, recorded_by_email):
     external = []
     recorded_by_email = (recorded_by_email or '').lower()
+    excluded_emails = get_excluded_emails()
     for invitee in invitees:
         if not isinstance(invitee, dict):
             continue
         if invitee.get('is_external') is True:
+            email = invitee.get('email')
+            if email and is_excluded_email(email, recorded_by_email, excluded_emails):
+                continue
             external.append(invitee)
             continue
         email = invitee.get('email')
         if not email:
             continue
-        if recorded_by_email and email.lower() == recorded_by_email:
+        if is_excluded_email(email, recorded_by_email, excluded_emails):
             continue
         external.append(invitee)
     return external
@@ -253,14 +273,14 @@ def create_prospect_from_invitee(supabase, invitee, notes_reason):
 
     existing = find_existing_prospect_by_email(supabase, email)
     if existing:
-        return existing
+        return existing, False
 
     existing = find_existing_prospect_by_name(supabase, name)
     if existing:
-        return existing
+        return existing, False
 
     if not name and not email:
-        return None
+        return None, False
 
     try:
         result = supabase.table('prospects').insert({
@@ -273,11 +293,98 @@ def create_prospect_from_invitee(supabase, invitee, notes_reason):
         }).execute()
 
         if result.data:
-            return result.data[0]
+            return result.data[0], True
     except Exception as e:
         print(f"Failed to create prospect from invitee: {e}")
 
-    return None
+    return None, False
+
+
+def upsert_call_participant(supabase, call_id, prospect_id, source):
+    try:
+        supabase.table('fathom_call_participants').insert({
+            'fathom_call_id': call_id,
+            'prospect_id': prospect_id,
+            'source': source
+        }).execute()
+    except Exception as e:
+        # Ignore duplicates due to unique constraint
+        if 'duplicate key value' in str(e).lower():
+            return
+        print(f"Failed to insert call participant: {e}")
+
+
+def extract_participants(meeting, recorded_by_email):
+    participants = []
+    excluded_emails = get_excluded_emails()
+
+    sources = [
+        ('calendar_invitees', meeting.get('calendar_invitees')),
+        ('attendees', meeting.get('attendees')),
+        ('invitees', meeting.get('invitees'))
+    ]
+    raw = meeting.get('raw_data') or {}
+    sources.extend([
+        ('calendar_invitees', raw.get('calendar_invitees')),
+        ('attendees', raw.get('attendees')),
+        ('invitees', raw.get('invitees'))
+    ])
+
+    for source, items in sources:
+        if not items:
+            continue
+        for invitee in items:
+            if not isinstance(invitee, dict):
+                continue
+            email = invitee.get('email')
+            if email and is_excluded_email(email, recorded_by_email, excluded_emails):
+                continue
+            name = invitee.get('name') or invitee.get('full_name') or invitee.get('display_name')
+            participants.append({
+                'name': name,
+                'email': email,
+                'source': source
+            })
+
+    recorded_by = meeting.get('recorded_by') or raw.get('recorded_by') or {}
+    recorded_by_email = recorded_by.get('email')
+    if recorded_by_email and not is_excluded_email(recorded_by_email, recorded_by_email, excluded_emails):
+        participants.append({
+            'name': recorded_by.get('name'),
+            'email': recorded_by_email,
+            'source': 'recorded_by'
+        })
+
+    transcript = meeting.get('transcript') or raw.get('transcript')
+    if isinstance(transcript, str):
+        transcript_name = infer_name_from_transcript(transcript, recorded_by.get('name'))
+        if transcript_name:
+            participants.append({
+                'name': transcript_name,
+                'email': None,
+                'source': 'transcript'
+            })
+
+    # Deduplicate by email, then by name
+    seen_email = set()
+    seen_name = set()
+    unique = []
+    for participant in participants:
+        email = (participant.get('email') or '').lower()
+        name = title_case_name(participant.get('name') or '') or ''
+        if email:
+            if email in seen_email:
+                continue
+            seen_email.add(email)
+        else:
+            if name and name in seen_name:
+                continue
+            if name:
+                seen_name.add(name)
+        participant['name'] = name or participant.get('name')
+        unique.append(participant)
+
+    return unique
 
 
 def derive_external_name_from_title(title, recorded_by_name):
@@ -425,8 +532,7 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
 
             existing = supabase.table('fathom_calls').select('id, prospect_id').eq('fathom_recording_id', str(recording_id)).execute()
             existing_call = existing.data[0] if existing.data else None
-            if existing_call and existing_call.get('prospect_id'):
-                continue
+            existing_linked = existing_call and existing_call.get('prospect_id') is not None
 
             title = meeting.get('title', 'Untitled Meeting')
             summary = extract_summary(meeting) or ''
@@ -443,7 +549,7 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
             if not prospect_id:
                 external_invitees = get_external_invitees(invitees, recorded_by_email)
                 if len(external_invitees) == 1:
-                    prospect = create_prospect_from_invitee(
+                    prospect, created = create_prospect_from_invitee(
                         supabase,
                         external_invitees[0],
                         'Auto-created from Fathom calendar invitee.'
@@ -451,13 +557,14 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
                     if prospect:
                         prospect_id = prospect['id']
                         confidence = 'auto_invitee'
-                        stats['contacts_created'] += 1
+                        if created:
+                            stats['contacts_created'] += 1
                         needs_review = False
 
             if not prospect_id:
                 inferred_name = infer_name_from_transcript(transcript, recorded_by_name)
                 if inferred_name:
-                    prospect = create_prospect_from_invitee(
+                    prospect, created = create_prospect_from_invitee(
                         supabase,
                         {'name': inferred_name, 'email': None},
                         'Auto-created from Fathom transcript.'
@@ -465,13 +572,14 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
                     if prospect:
                         prospect_id = prospect['id']
                         confidence = 'auto_transcript'
-                        stats['contacts_created'] += 1
+                        if created:
+                            stats['contacts_created'] += 1
                         needs_review = False
 
             if not prospect_id:
                 inferred_name = derive_external_name_from_title(title, recorded_by_name)
                 if inferred_name:
-                    prospect = create_prospect_from_invitee(
+                    prospect, created = create_prospect_from_invitee(
                         supabase,
                         {'name': inferred_name, 'email': None},
                         'Auto-created from Fathom call title.'
@@ -479,7 +587,8 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
                     if prospect:
                         prospect_id = prospect['id']
                         confidence = 'auto_title'
-                        stats['contacts_created'] += 1
+                        if created:
+                            stats['contacts_created'] += 1
                         needs_review = False
 
             if not prospect_id:
@@ -505,16 +614,32 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
                 needs_review = True
                 stats['needs_review_count'] += 1
 
+            participants = extract_participants(meeting, recorded_by_email)
+            participant_ids = []
+
+            for participant in participants:
+                if not participant.get('email') and not participant.get('name'):
+                    continue
+                prospect, created = create_prospect_from_invitee(
+                    supabase,
+                    participant,
+                    f"Auto-created from Fathom participants ({participant.get('source')})."
+                )
+                if prospect:
+                    participant_ids.append(prospect['id'])
+                    if created:
+                        stats['contacts_created'] += 1
+
             if existing_call:
                 update_data = {}
-                if prospect_id is not None:
+                if not existing_linked and prospect_id is not None:
                     update_data.update({
                         'prospect_id': prospect_id,
                         'auto_matched': confidence != 'manual',
                         'match_confidence': confidence,
                         'needs_review': needs_review
                     })
-                else:
+                elif not existing_linked:
                     update_data['needs_review'] = True
 
                 if llm_extraction is not None:
@@ -527,6 +652,9 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
                 if update_data:
                     update_data['updated_at'] = datetime.now(timezone.utc).isoformat()
                     supabase.table('fathom_calls').update(update_data).eq('id', existing_call['id']).execute()
+
+                for participant_id in participant_ids:
+                    upsert_call_participant(supabase, existing_call['id'], participant_id, 'participants')
                 continue
 
             stats['meetings_new'] += 1
@@ -550,6 +678,8 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
 
             if call_result.data:
                 call_id = call_result.data[0]['id']
+                for participant_id in participant_ids:
+                    upsert_call_participant(supabase, call_id, participant_id, 'participants')
                 action_items = meeting.get('action_items') or []
 
                 for item in action_items:
@@ -677,8 +807,32 @@ class handler(BaseHTTPRequestHandler):
         q = supabase.table('fathom_calls').select('*, fathom_action_items(id, description, completed, task_id)')
 
         if prospect_id:
-            q = q.eq('prospect_id', prospect_id)
-        elif unmatched:
+            direct_calls = q.eq('prospect_id', prospect_id).execute().data or []
+            seen_ids = {call.get('id') for call in direct_calls if call.get('id') is not None}
+
+            participant_response = supabase.table('fathom_call_participants').select(
+                'fathom_calls(*, fathom_action_items(id, description, completed, task_id))'
+            ).eq('prospect_id', prospect_id).execute()
+
+            for row in participant_response.data or []:
+                call = row.get('fathom_calls')
+                if isinstance(call, list):
+                    for item in call:
+                        if item.get('id') not in seen_ids:
+                            direct_calls.append(item)
+                            seen_ids.add(item.get('id'))
+                elif isinstance(call, dict):
+                    if call.get('id') not in seen_ids:
+                        direct_calls.append(call)
+                        seen_ids.add(call.get('id'))
+
+            # Sort and paginate after merge
+            direct_calls.sort(key=lambda c: c.get('call_date') or '', reverse=True)
+            paged = direct_calls[offset:offset + limit]
+            self._send_json(200, paged)
+            return
+
+        if unmatched:
             q = q.is_('prospect_id', 'null')
 
         if needs_review:

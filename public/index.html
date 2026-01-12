@@ -1168,6 +1168,18 @@
             line-height: 1.4;
         }
 
+        .call-link {
+            display: inline-block;
+            font-size: 12px;
+            color: #9bd1ff;
+            text-decoration: none;
+            margin-bottom: 8px;
+        }
+
+        .call-link:hover {
+            text-decoration: underline;
+        }
+
         .call-action-items {
             margin-top: 8px;
         }
@@ -2713,11 +2725,17 @@
                         `;
                     }
 
+                    const summaryText = call.summary ||
+                        (call.raw_data && (call.raw_data.default_summary || call.raw_data.summary || call.raw_data.meeting_title)) ||
+                        '';
+                    const callLink = call.raw_data && (call.raw_data.share_url || call.raw_data.url);
+
                     return `
                         <div class="call-item">
                             <div class="call-date">${callDate}</div>
                             <div class="call-title">${escapeHtml(call.title)}</div>
-                            ${call.summary ? `<div class="call-summary">${escapeHtml(call.summary)}</div>` : ''}
+                            ${summaryText ? `<div class="call-summary">${escapeHtml(summaryText)}</div>` : ''}
+                            ${callLink ? `<a class="call-link" href="${escapeHtml(callLink)}" target="_blank" rel="noopener">Open in Fathom</a>` : ''}
                             ${actionItemsHtml}
                         </div>
                     `;
