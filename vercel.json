@@ -3,7 +3,11 @@
     { "source": "/api/prospects", "destination": "/api/prospects" },
     { "source": "/api/prospect", "destination": "/api/prospect" },
     { "source": "/api/stats", "destination": "/api/stats" },
-    { "source": "/api/daily-planning", "destination": "/api/daily-planning" }
+    { "source": "/api/daily-planning", "destination": "/api/daily-planning" },
+    { "source": "/api/fathom-sync", "destination": "/api/fathom?endpoint=sync" },
+    { "source": "/api/fathom-calls", "destination": "/api/fathom?endpoint=calls" },
+    { "source": "/api/fathom-call", "destination": "/api/fathom?endpoint=call" },
+    { "source": "/api/fathom-action-item", "destination": "/api/fathom?endpoint=action-item" }
   ],
   "headers": [
     {
