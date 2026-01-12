@@ -328,6 +328,17 @@ def sync_fathom_meetings(supabase, sync_type='cron_hourly', since_hours=2):
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
+            # Cron disabled on Vercel Hobby. Use Telegram /fathom for on-demand syncs.
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                'success': True,
+                'disabled': True,
+                'message': 'Fathom cron disabled; use /fathom in Telegram for manual sync.'
+            }).encode())
+            return
+
             # Verify cron secret
             auth_header = self.headers.get('Authorization')
             cron_secret = os.environ.get('CRON_SECRET')
