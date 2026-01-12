@@ -37,6 +37,7 @@ A single local app that serves as my daily command center - tracking prospects, 
 - [ ] Deploy to Vercel + Supabase (backlogged)
 - [ ] Mobile-friendly / PWA
 - [ ] Dark/light theme toggle
+- [ ] Reintroduce daily migrate-tomorrow job (cron removed for Hobby limits)
 
 ---
 
@@ -49,5 +50,4 @@ _Capture random thoughts here_
 
 ## Decided Against
 _Ideas we've considered but won't pursue_
-
 

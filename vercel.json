@@ -21,10 +21,6 @@
   ],
   "crons": [
     {
-      "path": "/api/cron/migrate-tomorrow",
-      "schedule": "0 0 * * *"
-    },
-    {
       "path": "/api/cron/daily-summary",
       "schedule": "0 4 * * *"
     }
