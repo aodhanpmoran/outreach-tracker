@@ -89,7 +89,7 @@
 
         .pipeline {
             display: grid;
-            grid-template-columns: repeat(6, 1fr);
+            grid-template-columns: repeat(7, 1fr);
             gap: 12px;
             margin-bottom: 32px;
         }
@@ -213,6 +213,7 @@
         .status-responded { border-left: 3px solid #8b5cf6; }
         .status-call_scheduled { border-left: 3px solid #f59e0b; }
         .status-closed { border-left: 3px solid #22c55e; }
+        .status-client { border-left: 3px solid #10b981; }
         .status-lost { border-left: 3px solid #ef4444; }
 
         .quick-actions { display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap; }
@@ -329,6 +330,7 @@
         .status-badge.responded { background: #3b1f5c; color: #a855f7; }
         .status-badge.call_scheduled { background: #4a3419; color: #f59e0b; }
         .status-badge.closed { background: #14532d; color: #22c55e; }
+        .status-badge.client { background: #064e3b; color: #10b981; }
         .status-badge.lost { background: #450a0a; color: #ef4444; }
 
         .table-empty { text-align: center; padding: 40px; color: #666; }
@@ -1114,6 +1116,132 @@
                 right: -100%;
             }
         }
+
+        /* Call History in Modal */
+        .calls-section {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #2a2a2a;
+        }
+
+        .calls-section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .calls-section-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: #aaa;
+        }
+
+        .calls-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .call-item {
+            background: #252525;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 8px;
+        }
+
+        .call-date {
+            font-size: 11px;
+            color: #666;
+        }
+
+        .call-title {
+            font-weight: 600;
+            margin: 4px 0;
+            font-size: 14px;
+        }
+
+        .call-summary {
+            font-size: 13px;
+            color: #aaa;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .call-action-items {
+            margin-top: 8px;
+        }
+
+        .call-action-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 6px 0;
+            font-size: 13px;
+        }
+
+        .call-action-item-text {
+            flex: 1;
+            color: #ccc;
+        }
+
+        .add-to-tasks-btn {
+            font-size: 11px;
+            padding: 2px 8px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .add-to-tasks-btn:hover {
+            background: #1d4ed8;
+        }
+
+        .add-to-tasks-btn.added {
+            background: #22c55e;
+            cursor: default;
+        }
+
+        .calls-empty {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 13px;
+        }
+
+        /* Unmatched Calls Indicator */
+        .unmatched-calls-btn {
+            background: #4a3419;
+            border: 1px solid #f59e0b;
+            color: #f59e0b;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            display: none;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .unmatched-calls-btn.visible {
+            display: flex;
+        }
+
+        .unmatched-calls-btn:hover {
+            background: #5a4419;
+        }
+
+        .unmatched-count-badge {
+            background: #f59e0b;
+            color: #000;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 11px;
+        }
     </style>
 </head>
 <body>
@@ -1128,6 +1256,10 @@
         <header>
             <h1>Outreach Tracker</h1>
             <div class="header-actions">
+                <button class="unmatched-calls-btn" id="unmatchedCallsBtn" onclick="showUnmatchedCalls()">
+                    <span class="unmatched-count-badge" id="unmatchedCount">0</span>
+                    Unmatched Calls
+                </button>
                 <button class="history-btn" onclick="openHistory()">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="10"/>
@@ -1260,6 +1392,13 @@
                 </div>
                 <div class="column-body" id="colClosed"></div>
             </div>
+            <div class="column" data-status="client">
+                <div class="column-header">
+                    <span class="column-title">Client</span>
+                    <span class="column-count" id="countClient">0</span>
+                </div>
+                <div class="column-body" id="colClient"></div>
+            </div>
             <div class="column" data-status="lost">
                 <div class="column-header">
                     <span class="column-title">Lost</span>
@@ -1314,6 +1453,7 @@
                         <option value="responded">Responded</option>
                         <option value="call_scheduled">Call Scheduled</option>
                         <option value="closed">Closed</option>
+                        <option value="client">Client</option>
                         <option value="lost">Lost</option>
                     </select>
                 </div>
@@ -1324,6 +1464,14 @@
                 <div class="form-group">
                     <label>Notes</label>
                     <textarea id="prospectNotes" placeholder="Add any relevant notes..."></textarea>
+                </div>
+                <div class="calls-section" id="callsSection" style="display: none;">
+                    <div class="calls-section-header">
+                        <span class="calls-section-title">Call History</span>
+                    </div>
+                    <div class="calls-list" id="callsList">
+                        <!-- Rendered by JS -->
+                    </div>
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
@@ -1346,6 +1494,7 @@
             responded: 'colResponded',
             call_scheduled: 'colCall',
             closed: 'colClosed',
+            client: 'colClient',
             lost: 'colLost'
         };
 
@@ -1353,7 +1502,8 @@
             new: 'contacted',
             contacted: 'responded',
             responded: 'call_scheduled',
-            call_scheduled: 'closed'
+            call_scheduled: 'closed',
+            closed: 'client'
         };
 
         const statusLabels = {
@@ -1362,6 +1512,7 @@
             responded: 'Responded',
             call_scheduled: 'Call Scheduled',
             closed: 'Closed',
+            client: 'Client',
             lost: 'Lost'
         };
 
@@ -1996,6 +2147,7 @@
             document.getElementById('countResponded').textContent = stats.by_status.responded || 0;
             document.getElementById('countCall').textContent = stats.by_status.call_scheduled || 0;
             document.getElementById('countClosed').textContent = stats.by_status.closed || 0;
+            document.getElementById('countClient').textContent = stats.by_status.client || 0;
             document.getElementById('countLost').textContent = stats.by_status.lost || 0;
 
             const closed = stats.by_status.closed || 0;
@@ -2123,6 +2275,8 @@
                 title.textContent = 'Add Prospect';
                 deleteBtn.style.display = 'none';
                 document.getElementById('prospectId').value = '';
+                // Hide calls section for new prospects
+                document.getElementById('callsSection').style.display = 'none';
             }
             modal.classList.add('active');
         }
@@ -2148,6 +2302,8 @@
                 }
             }
             openModal(prospect);
+            // Load call history for this prospect
+            loadProspectCalls(prospect.id);
         }
 
         async function deleteProspect() {
@@ -2509,6 +2665,135 @@
                 }
             }
         });
+
+        // Fathom Call History
+        async function loadProspectCalls(prospectId) {
+            const callsSection = document.getElementById('callsSection');
+            const callsList = document.getElementById('callsList');
+
+            if (!prospectId) {
+                callsSection.style.display = 'none';
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/fathom-calls?prospect_id=${prospectId}`);
+                if (!res.ok) {
+                    callsSection.style.display = 'none';
+                    return;
+                }
+
+                const calls = await res.json();
+
+                if (!calls || calls.length === 0) {
+                    callsSection.style.display = 'block';
+                    callsList.innerHTML = '<div class="calls-empty">No calls recorded for this contact</div>';
+                    return;
+                }
+
+                callsSection.style.display = 'block';
+                callsList.innerHTML = calls.map(call => {
+                    const callDate = call.call_date ? new Date(call.call_date).toLocaleDateString() : '';
+                    const actionItems = call.fathom_action_items || [];
+
+                    let actionItemsHtml = '';
+                    if (actionItems.length > 0) {
+                        actionItemsHtml = `
+                            <div class="call-action-items">
+                                ${actionItems.map(item => `
+                                    <div class="call-action-item">
+                                        <span class="call-action-item-text">${escapeHtml(item.description)}</span>
+                                        ${item.task_id ?
+                                            '<button class="add-to-tasks-btn added">Added</button>' :
+                                            `<button class="add-to-tasks-btn" onclick="addCallActionToTasks(${item.id}, '${escapeHtml(item.description).replace(/'/g, "\\'")}')">+ Tasks</button>`
+                                        }
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                    }
+
+                    return `
+                        <div class="call-item">
+                            <div class="call-date">${callDate}</div>
+                            <div class="call-title">${escapeHtml(call.title)}</div>
+                            ${call.summary ? `<div class="call-summary">${escapeHtml(call.summary)}</div>` : ''}
+                            ${actionItemsHtml}
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                console.error('Failed to load calls:', error);
+                callsSection.style.display = 'none';
+            }
+        }
+
+        async function addCallActionToTasks(actionItemId, description) {
+            const tasks = getCurrentTasks();
+            if (tasks.length >= MAX_TASKS) {
+                alert('Daily tasks full (max 3). Complete or remove a task first.');
+                return;
+            }
+
+            // Add to daily tasks
+            const saved = await saveTaskToDb(description, false);
+            if (saved && saved.id) {
+                // Update action item to link to task
+                try {
+                    await fetch(`/api/fathom-action-item?id=${actionItemId}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ task_id: saved.id })
+                    });
+                } catch (e) {
+                    console.error('Failed to link action item:', e);
+                }
+
+                // Add to local state
+                tasks.push({ text: description, completed: false, dbId: saved.id });
+                setCurrentTasks(tasks);
+                saveDailyTasks();
+                renderDailyTasks();
+
+                // Refresh calls list
+                const prospectId = document.getElementById('prospectId').value;
+                if (prospectId) {
+                    loadProspectCalls(prospectId);
+                }
+            }
+        }
+
+        // Unmatched Calls
+        async function checkUnmatchedCalls() {
+            try {
+                const res = await fetch('/api/fathom-calls?unmatched=true&limit=100');
+                if (!res.ok) return;
+
+                const calls = await res.json();
+                const count = calls.length;
+
+                const btn = document.getElementById('unmatchedCallsBtn');
+                const countEl = document.getElementById('unmatchedCount');
+
+                if (count > 0) {
+                    btn.classList.add('visible');
+                    countEl.textContent = count;
+                } else {
+                    btn.classList.remove('visible');
+                }
+            } catch (error) {
+                console.error('Failed to check unmatched calls:', error);
+            }
+        }
+
+        function showUnmatchedCalls() {
+            // For now, just alert - could expand to a modal later
+            window.open('/api/fathom-calls?unmatched=true', '_blank');
+        }
+
+        // Check for unmatched calls on page load
+        checkUnmatchedCalls();
     </script>
 
     <!-- Celebration Overlay -->

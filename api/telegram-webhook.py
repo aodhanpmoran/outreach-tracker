@@ -345,6 +345,170 @@ def build_confirmation(today_result, tomorrow_result, ignored_lines):
     return "\n".join(lines)
 
 class handler(BaseHTTPRequestHandler):
+    def _handle_fathom_sync(self, supabase):
+        """Trigger Fathom sync and return summary"""
+        try:
+            import requests
+            from datetime import timezone
+
+            api_key = os.environ.get("FATHOM_API_KEY")
+            if not api_key:
+                return "Error: FATHOM_API_KEY not configured"
+
+            # Fetch recent meetings (last 24 hours for manual sync)
+            since_date = datetime.now(timezone.utc) - timedelta(hours=24)
+
+            response = requests.get(
+                'https://api.fathom.video/v1/calls',
+                headers={'Authorization': f'Bearer {api_key}'},
+                params={'created_after': since_date.isoformat()},
+                timeout=30
+            )
+
+            if response.status_code == 429:
+                return "Error: Fathom API rate limit exceeded. Try again later."
+
+            response.raise_for_status()
+            meetings = response.json()
+
+            if isinstance(meetings, dict):
+                meetings_list = meetings.get('calls', meetings.get('data', []))
+            else:
+                meetings_list = meetings
+
+            # Count stats
+            new_count = 0
+            existing_count = 0
+
+            for meeting in meetings_list:
+                recording_id = meeting.get('id') or meeting.get('recording_id')
+                if not recording_id:
+                    continue
+
+                existing = supabase.table('fathom_calls').select('id').eq('fathom_recording_id', str(recording_id)).execute()
+                if existing.data:
+                    existing_count += 1
+                else:
+                    new_count += 1
+
+            # Get unmatched count
+            unmatched = supabase.table('fathom_calls').select('id').is_('prospect_id', 'null').execute()
+            unmatched_count = len(unmatched.data) if unmatched.data else 0
+
+            lines = [
+                "Fathom Sync Status",
+                "",
+                f"Calls in last 24h: {len(meetings_list)}",
+                f"- Already synced: {existing_count}",
+                f"- New to sync: {new_count}",
+                "",
+                f"Unmatched calls: {unmatched_count}"
+            ]
+
+            if new_count > 0:
+                lines.append("")
+                lines.append("Run the hourly cron or deploy to sync new calls.")
+
+            return "\n".join(lines)
+
+        except Exception as e:
+            return f"Error syncing Fathom: {str(e)}"
+
+    def _handle_fathom_recent(self, supabase):
+        """List recent Fathom calls"""
+        try:
+            response = supabase.table('fathom_calls').select(
+                'id, title, call_date, prospect_id, needs_review, prospects(name)'
+            ).order('call_date', desc=True).limit(5).execute()
+
+            if not response.data:
+                return "No Fathom calls found."
+
+            lines = ["Recent Fathom Calls:", ""]
+
+            for call in response.data:
+                call_date = call.get('call_date', '')[:10]
+                title = call.get('title', 'Untitled')[:30]
+                call_id = call.get('id')
+
+                if call.get('prospects') and call['prospects'].get('name'):
+                    status = f"-> {call['prospects']['name']}"
+                elif call.get('needs_review'):
+                    status = "(needs review)"
+                elif call.get('prospect_id'):
+                    status = "(linked)"
+                else:
+                    status = "(unmatched)"
+
+                lines.append(f"[{call_id}] {call_date}: {title}")
+                lines.append(f"    {status}")
+
+            return "\n".join(lines)
+
+        except Exception as e:
+            return f"Error fetching calls: {str(e)}"
+
+    def _handle_fathom_unmatched(self, supabase):
+        """Show calls needing review"""
+        try:
+            response = supabase.table('fathom_calls').select(
+                'id, title, call_date, llm_extraction'
+            ).is_('prospect_id', 'null').order('call_date', desc=True).limit(10).execute()
+
+            if not response.data:
+                return "No unmatched calls! All calls are linked to contacts."
+
+            lines = ["Unmatched Fathom Calls:", ""]
+
+            for call in response.data:
+                call_date = call.get('call_date', '')[:10]
+                title = call.get('title', 'Untitled')[:35]
+                call_id = call.get('id')
+
+                llm = call.get('llm_extraction') or {}
+                suggested_name = llm.get('full_name', 'Unknown')
+
+                lines.append(f"[{call_id}] {call_date}")
+                lines.append(f"    {title}")
+                lines.append(f"    Suggested: {suggested_name}")
+                lines.append("")
+
+            lines.append("To link: /fathom link <call_id> <prospect_id>")
+
+            return "\n".join(lines)
+
+        except Exception as e:
+            return f"Error fetching unmatched calls: {str(e)}"
+
+    def _handle_fathom_link(self, supabase, call_id, prospect_id):
+        """Manually link a call to a prospect"""
+        try:
+            # Verify call exists
+            call = supabase.table('fathom_calls').select('id, title').eq('id', call_id).execute()
+            if not call.data:
+                return f"Call ID {call_id} not found."
+
+            # Verify prospect exists
+            prospect = supabase.table('prospects').select('id, name').eq('id', prospect_id).execute()
+            if not prospect.data:
+                return f"Prospect ID {prospect_id} not found."
+
+            # Update the link
+            supabase.table('fathom_calls').update({
+                'prospect_id': prospect_id,
+                'match_confidence': 'manual',
+                'auto_matched': False,
+                'needs_review': False
+            }).eq('id', call_id).execute()
+
+            call_title = call.data[0].get('title', 'Untitled')[:30]
+            prospect_name = prospect.data[0].get('name', 'Unknown')
+
+            return f"Linked!\n\nCall: {call_title}\nContact: {prospect_name}"
+
+        except Exception as e:
+            return f"Error linking call: {str(e)}"
+
     def do_POST(self):
         try:
             secret = os.environ.get('TELEGRAM_WEBHOOK_SECRET')
@@ -390,6 +554,50 @@ class handler(BaseHTTPRequestHandler):
                     'success': True,
                     'command': 'update',
                     'stats': stats
+                }).encode())
+                return
+
+            # Check if this is a "fathom" command
+            if text.strip().lower().startswith('/fathom') or text.strip().lower().startswith('fathom'):
+                supabase = get_supabase()
+                parts = text.strip().split()
+                command = parts[1].lower() if len(parts) > 1 else 'sync'
+
+                response_message = ""
+
+                if command in ['sync', '']:
+                    # Trigger sync and report
+                    response_message = self._handle_fathom_sync(supabase)
+                elif command == 'recent':
+                    # List recent calls
+                    response_message = self._handle_fathom_recent(supabase)
+                elif command == 'link' and len(parts) >= 4:
+                    # Manual link: /fathom link <call_id> <prospect_id>
+                    call_id = parts[2]
+                    prospect_id = parts[3]
+                    response_message = self._handle_fathom_link(supabase, call_id, prospect_id)
+                elif command == 'unmatched':
+                    # Show calls needing review
+                    response_message = self._handle_fathom_unmatched(supabase)
+                else:
+                    response_message = (
+                        "Fathom Commands:\n"
+                        "/fathom - Sync recent calls\n"
+                        "/fathom recent - List last 5 calls\n"
+                        "/fathom unmatched - Show calls needing review\n"
+                        "/fathom link <call_id> <prospect_id> - Link call to contact"
+                    )
+
+                if chat_id and response_message:
+                    send_telegram_message(chat_id, response_message)
+
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    'success': True,
+                    'command': 'fathom',
+                    'subcommand': command
                 }).encode())
                 return
 
