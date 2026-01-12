@@ -2,6 +2,7 @@ from http.server import BaseHTTPRequestHandler
 import json
 import os
 import re
+import hashlib
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse, parse_qs
 
@@ -37,6 +38,52 @@ def get_fathom_meetings(since_hours=2):
 
     response.raise_for_status()
     return response.json()
+
+
+def get_fathom_transcript(recording_id):
+    api_key = os.environ.get("FATHOM_API_KEY")
+    if not api_key or not recording_id:
+        return None, None
+
+    try:
+        response = requests.get(
+            f'https://api.fathom.ai/external/v1/recordings/{recording_id}/transcript',
+            headers={'X-Api-Key': api_key},
+            timeout=30
+        )
+        if response.status_code == 404:
+            return None, None
+        response.raise_for_status()
+        transcript_data = response.json()
+    except Exception as e:
+        print(f"Transcript fetch failed: {e}")
+        return None, None
+
+    if isinstance(transcript_data, dict):
+        segments = transcript_data.get('segments') or transcript_data.get('items') or transcript_data.get('transcript') or []
+    else:
+        segments = transcript_data
+
+    lines = []
+    if isinstance(segments, list):
+        for segment in segments:
+            if isinstance(segment, dict):
+                speaker = segment.get('speaker_name') or segment.get('speaker') or segment.get('name')
+                text = segment.get('text') or segment.get('transcript') or segment.get('content')
+                if text:
+                    if speaker:
+                        lines.append(f"{speaker}: {text}")
+                    else:
+                        lines.append(text)
+            elif isinstance(segment, str):
+                lines.append(segment)
+
+    transcript_text = "\n".join(lines).strip()
+    if not transcript_text:
+        return None, None
+
+    excerpt = transcript_text[:500]
+    return transcript_text, excerpt
 
 
 def parse_meeting_title(title):
@@ -262,6 +309,78 @@ def extract_summary(meeting):
             summary = f"Call recorded: {title}"
 
     return summary.strip() if isinstance(summary, str) and summary.strip() else None
+
+
+def hash_text(value):
+    if not value:
+        return None
+    return hashlib.sha256(value.encode('utf-8')).hexdigest()
+
+
+def summarize_transcript_with_llm(title, transcript_text):
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key or not transcript_text:
+        return None
+
+    trimmed = transcript_text
+    if len(trimmed) > 12000:
+        trimmed = trimmed[:12000]
+
+    prompt = f"""Summarize this call and extract the 3 most important action items.
+
+Title: {title}
+
+Transcript:
+{trimmed}
+
+Return JSON only (no markdown):
+{{
+  "summary": "1-2 sentence summary",
+  "action_items": ["item 1", "item 2", "item 3"]
+}}
+"""
+
+    try:
+        response = requests.post(
+            'https://api.openai.com/v1/chat/completions',
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            },
+            json={
+                'model': 'gpt-4o-mini',
+                'messages': [{'role': 'user', 'content': prompt}],
+                'temperature': 0.2
+            },
+            timeout=45
+        )
+        response.raise_for_status()
+
+        content = response.json()['choices'][0]['message']['content']
+        content = content.strip()
+        if content.startswith('```'):
+            content = re.sub(r'^```(?:json)?\n?', '', content)
+            content = re.sub(r'\n?```$', '', content)
+
+        result = json.loads(content)
+        if not isinstance(result, dict):
+            return None
+
+        summary = result.get('summary')
+        action_items = result.get('action_items')
+        if isinstance(action_items, list):
+            action_items = [str(item).strip() for item in action_items if str(item).strip()]
+            action_items = action_items[:3]
+        else:
+            action_items = []
+
+        return {
+            'summary': summary.strip() if isinstance(summary, str) and summary.strip() else None,
+            'action_items': action_items
+        }
+    except Exception as e:
+        print(f"LLM summary failed: {e}")
+        return None
 
 
 def create_prospect_from_invitee(supabase, invitee, notes_reason):
@@ -530,7 +649,7 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
             if not recording_id:
                 continue
 
-            existing = supabase.table('fathom_calls').select('id, prospect_id').eq('fathom_recording_id', str(recording_id)).execute()
+            existing = supabase.table('fathom_calls').select('id, prospect_id, processed_at, transcript_hash').eq('fathom_recording_id', str(recording_id)).execute()
             existing_call = existing.data[0] if existing.data else None
             existing_linked = existing_call and existing_call.get('prospect_id') is not None
 
@@ -630,6 +749,23 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
                     if created:
                         stats['contacts_created'] += 1
 
+            llm_summary = None
+            llm_action_items = []
+            transcript_hash = None
+            transcript_excerpt = None
+            processed_at = None
+
+            should_process_transcript = not (existing_call and existing_call.get('processed_at'))
+            if should_process_transcript:
+                transcript_text, transcript_excerpt = get_fathom_transcript(recording_id)
+                if transcript_text:
+                    transcript_hash = hash_text(transcript_text)
+                    llm_result = summarize_transcript_with_llm(title, transcript_text)
+                    if llm_result:
+                        llm_summary = llm_result.get('summary')
+                        llm_action_items = llm_result.get('action_items') or []
+                        processed_at = datetime.now(timezone.utc).isoformat()
+
             if existing_call:
                 update_data = {}
                 if not existing_linked and prospect_id is not None:
@@ -648,6 +784,16 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
                     update_data['summary'] = summary[:5000]
                 if recorded_by_email:
                     update_data['recorded_by_email'] = recorded_by_email
+                if llm_summary:
+                    update_data['summary_llm'] = llm_summary
+                if llm_action_items:
+                    update_data['action_items_llm'] = llm_action_items
+                if transcript_hash:
+                    update_data['transcript_hash'] = transcript_hash
+                if transcript_excerpt:
+                    update_data['transcript_excerpt'] = transcript_excerpt
+                if processed_at:
+                    update_data['processed_at'] = processed_at
 
                 if update_data:
                     update_data['updated_at'] = datetime.now(timezone.utc).isoformat()
@@ -663,6 +809,11 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
                 'fathom_recording_id': str(recording_id),
                 'title': title,
                 'summary': summary[:5000] if summary else None,
+                'summary_llm': llm_summary,
+                'action_items_llm': llm_action_items if llm_action_items else None,
+                'transcript_hash': transcript_hash,
+                'transcript_excerpt': transcript_excerpt,
+                'processed_at': processed_at,
                 'call_date': meeting.get('created_at') or meeting.get('start_time') or datetime.now(timezone.utc).isoformat(),
                 'duration_minutes': meeting.get('duration_minutes') or meeting.get('duration'),
                 'recorded_by_email': recorded_by_email,

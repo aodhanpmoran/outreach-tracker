@@ -2859,27 +2859,31 @@
                 callsSection.style.display = 'block';
                 callsList.innerHTML = calls.map(call => {
                     const callDate = call.call_date ? new Date(call.call_date).toLocaleDateString() : '';
-                    const actionItems = (call.fathom_action_items || []).slice(0, 3);
+                    const llmItems = Array.isArray(call.action_items_llm) ? call.action_items_llm : [];
+                    const actionItems = llmItems.length > 0 ? llmItems.slice(0, 3) : (call.fathom_action_items || []).slice(0, 3);
 
                     let actionItemsHtml = '';
                     if (actionItems.length > 0) {
                         actionItemsHtml = `
                             <div class="call-action-items">
                                 <div class="call-action-items-title">Top action items</div>
-                                ${actionItems.map(item => `
+                                ${actionItems.map(item => {
+                                    const description = typeof item === 'string' ? item : item.description;
+                                    if (!description) return '';
+                                    return `
                                     <div class="call-action-item">
-                                        <span class="call-action-item-text">${escapeHtml(item.description)}</span>
-                                        ${item.task_id ?
+                                        <span class="call-action-item-text">${escapeHtml(description)}</span>
+                                        ${typeof item === 'string' ? '' : (item.task_id ?
                                             '<button class="add-to-tasks-btn added">Added</button>' :
-                                            `<button class="add-to-tasks-btn" onclick="addCallActionToTasks(${item.id}, '${escapeHtml(item.description).replace(/'/g, "\\'")}')">+ Tasks</button>`
-                                        }
+                                            `<button class="add-to-tasks-btn" onclick="addCallActionToTasks(${item.id}, '${escapeHtml(description).replace(/'/g, "\\'")}')">+ Tasks</button>`
+                                        )}
                                     </div>
-                                `).join('')}
+                                `}).join('')}
                             </div>
                         `;
                     }
 
-                    const summaryText = call.summary ||
+                    const summaryText = call.summary_llm || call.summary ||
                         (call.raw_data && (call.raw_data.default_summary || call.raw_data.summary || call.raw_data.meeting_title)) ||
                         '';
                     const callLink = call.raw_data && (call.raw_data.share_url || call.raw_data.url);
