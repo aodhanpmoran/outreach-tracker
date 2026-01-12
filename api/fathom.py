@@ -212,9 +212,9 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
         meetings = get_fathom_meetings(since_hours)
 
         if isinstance(meetings, dict):
-            meetings_list = meetings.get('items', meetings.get('calls', meetings.get('data', [])))
+            meetings_list = meetings.get('items') or meetings.get('calls') or meetings.get('data') or []
         else:
-            meetings_list = meetings
+            meetings_list = meetings or []
 
         for meeting in meetings_list:
             stats['meetings_processed'] += 1
@@ -231,7 +231,7 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
 
             title = meeting.get('title', 'Untitled Meeting')
             summary = meeting.get('summary', '')
-            invitees = meeting.get('attendees', meeting.get('invitees', []))
+            invitees = meeting.get('attendees') or meeting.get('invitees') or []
             transcript = meeting.get('transcript', '')
 
             prospect_id, confidence, matched_prospect = match_to_prospect(supabase, title, invitees)
@@ -276,7 +276,7 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
 
             if call_result.data:
                 call_id = call_result.data[0]['id']
-                action_items = meeting.get('action_items', [])
+                action_items = meeting.get('action_items') or []
 
                 for item in action_items:
                     item_data = {

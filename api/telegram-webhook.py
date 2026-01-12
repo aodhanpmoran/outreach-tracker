@@ -372,9 +372,9 @@ class handler(BaseHTTPRequestHandler):
             meetings = response.json()
 
             if isinstance(meetings, dict):
-                meetings_list = meetings.get('items', [])
+                meetings_list = meetings.get('items') or meetings.get('calls') or meetings.get('data') or []
             else:
-                meetings_list = meetings
+                meetings_list = meetings or []
 
             # Count stats
             new_count = 0
