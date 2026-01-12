@@ -326,12 +326,17 @@ def summarize_transcript_with_llm(title, transcript_text):
     if len(trimmed) > 12000:
         trimmed = trimmed[:12000]
 
-    prompt = f"""Summarize this call and extract the 3 most important action items.
+    prompt = f"""Summarize this call and extract the 3 most important work-related action items.
 
 Title: {title}
 
 Transcript:
 {trimmed}
+
+Rules:
+- Focus only on work-related topics (projects, deliverables, decisions, follow-ups).
+- Ignore personal life, family, health, and casual chit-chat.
+- If no work-related content exists, return null summary and an empty action_items array.
 
 Return JSON only (no markdown):
 {{
