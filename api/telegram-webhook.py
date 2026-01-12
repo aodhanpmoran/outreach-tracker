@@ -8,8 +8,14 @@ from urllib.request import Request, urlopen
 from supabase import create_client
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from fathom import sync_fathom_meetings
+sync_fathom_meetings = None
+_fathom_import_error = None
+
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from fathom import sync_fathom_meetings
+except Exception as e:
+    _fathom_import_error = str(e)
 
 MAX_TASKS = 3
 
@@ -352,6 +358,10 @@ class handler(BaseHTTPRequestHandler):
     def _handle_fathom_sync(self, supabase, since_hours=24, label=None):
         """Trigger Fathom sync and return summary"""
         try:
+            if not sync_fathom_meetings:
+                reason = _fathom_import_error or "Unknown import error"
+                return f"Error syncing Fathom: handler unavailable ({reason})"
+
             stats = sync_fathom_meetings(supabase, sync_type='telegram_manual', since_hours=since_hours)
 
             window_label = label or f"Last {round(since_hours / 24, 1)} days"
