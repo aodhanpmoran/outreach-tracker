@@ -153,9 +153,103 @@ def find_existing_prospect_by_name(supabase, name):
     return None
 
 
+def title_case_name(value):
+    if not value:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    parts = []
+    for token in re.split(r'\\s+', value):
+        if not token:
+            continue
+        subparts = re.split(r'([\\-\\'\\u2019])', token)
+        rebuilt = ''
+        for part in subparts:
+            if part in ['-', \"'\", '’']:
+                rebuilt += part
+            elif part:
+                rebuilt += part[:1].upper() + part[1:].lower()
+        parts.append(rebuilt)
+    return ' '.join(parts)
+
+
+def derive_name_from_email(email):
+    if not email:
+        return None
+    local = email.split('@')[0]
+    local = local.split('+')[0]
+    local = re.sub(r'[^a-zA-Z\\s._-]', ' ', local)
+    local = re.sub(r'[._-]+', ' ', local)
+    local = re.sub(r'\\s+', ' ', local).strip()
+    if not local:
+        return None
+    return title_case_name(local)
+
+
+def infer_name_from_transcript(transcript, recorded_by_name):
+    if not transcript or not isinstance(transcript, str):
+        return None
+    recorded_by_name = (recorded_by_name or '').strip().lower()
+    for line in transcript.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        match = re.match(r\"^([A-Za-z][A-Za-z'\\u2019\\-\\.]+(?:\\s+[A-Za-z][A-Za-z'\\u2019\\-\\.]+){0,2})\\s*:\", line)
+        if match:
+            candidate = match.group(1).strip()
+            if recorded_by_name and recorded_by_name in candidate.lower():
+                continue
+            return title_case_name(candidate)
+    return None
+
+
+def extract_summary(meeting):
+    raw = meeting.get('raw_data') or {}
+    summary = (
+        meeting.get('summary') or
+        meeting.get('default_summary') or
+        meeting.get('summary_text') or
+        meeting.get('summary_markdown') or
+        raw.get('summary') or
+        raw.get('default_summary') or
+        raw.get('summary_text') or
+        raw.get('summary_markdown')
+    )
+
+    if not summary:
+        action_items = meeting.get('action_items') or raw.get('action_items') or []
+        if action_items:
+            item_texts = []
+            for item in action_items:
+                if isinstance(item, dict):
+                    text = item.get('text') or item.get('description')
+                else:
+                    text = str(item)
+                if text:
+                    item_texts.append(text.strip())
+            if item_texts:
+                summary = "Action items: " + "; ".join(item_texts[:5])
+
+    if not summary:
+        transcript = meeting.get('transcript') or raw.get('transcript')
+        if isinstance(transcript, str) and transcript.strip():
+            summary = transcript.strip().split('\\n')[0][:280]
+
+    if not summary:
+        title = meeting.get('title') or raw.get('meeting_title')
+        if title:
+            summary = f"Call recorded: {title}"
+
+    return summary.strip() if isinstance(summary, str) and summary.strip() else None
+
+
 def create_prospect_from_invitee(supabase, invitee, notes_reason):
     name = invitee.get('name') or invitee.get('full_name') or invitee.get('display_name')
     email = invitee.get('email')
+    if not name:
+        name = derive_name_from_email(email)
+    name = title_case_name(name) if name else None
 
     existing = find_existing_prospect_by_email(supabase, email)
     if existing:
@@ -200,7 +294,7 @@ def derive_external_name_from_title(title, recorded_by_name):
             filtered.append(candidate)
         candidates = filtered
     if len(candidates) == 1:
-        return candidates[0]
+        return title_case_name(candidates[0])
     return None
 
 
@@ -271,6 +365,7 @@ def create_prospect_from_llm(supabase, llm_result):
     if not llm_result or not llm_result.get('full_name'):
         return None
 
+    full_name = title_case_name(llm_result.get('full_name'))
     relationship = llm_result.get('relationship_type', 'unknown')
     if relationship == 'client':
         status = 'client'
@@ -281,7 +376,7 @@ def create_prospect_from_llm(supabase, llm_result):
 
     try:
         result = supabase.table('prospects').insert({
-            'name': llm_result['full_name'],
+            'name': full_name or llm_result['full_name'],
             'company': llm_result.get('company'),
             'email': llm_result.get('email'),
             'status': status,
@@ -334,16 +429,58 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
                 continue
 
             title = meeting.get('title', 'Untitled Meeting')
-            summary = meeting.get('summary', '')
+            summary = extract_summary(meeting) or ''
             invitees = get_meeting_invitees(meeting)
             recorded_by_email = get_recorded_by_email(meeting)
             recorded_by_name = get_recorded_by_name(meeting)
-            transcript = meeting.get('transcript', '')
+            transcript = meeting.get('transcript') or (meeting.get('raw_data') or {}).get('transcript') or ''
 
             prospect_id, confidence, matched_prospect = match_to_prospect(supabase, title, invitees)
 
             llm_extraction = None
             needs_review = False
+
+            if not prospect_id:
+                external_invitees = get_external_invitees(invitees, recorded_by_email)
+                if len(external_invitees) == 1:
+                    prospect = create_prospect_from_invitee(
+                        supabase,
+                        external_invitees[0],
+                        'Auto-created from Fathom calendar invitee.'
+                    )
+                    if prospect:
+                        prospect_id = prospect['id']
+                        confidence = 'auto_invitee'
+                        stats['contacts_created'] += 1
+                        needs_review = False
+
+            if not prospect_id:
+                inferred_name = infer_name_from_transcript(transcript, recorded_by_name)
+                if inferred_name:
+                    prospect = create_prospect_from_invitee(
+                        supabase,
+                        {'name': inferred_name, 'email': None},
+                        'Auto-created from Fathom transcript.'
+                    )
+                    if prospect:
+                        prospect_id = prospect['id']
+                        confidence = 'auto_transcript'
+                        stats['contacts_created'] += 1
+                        needs_review = False
+
+            if not prospect_id:
+                inferred_name = derive_external_name_from_title(title, recorded_by_name)
+                if inferred_name:
+                    prospect = create_prospect_from_invitee(
+                        supabase,
+                        {'name': inferred_name, 'email': None},
+                        'Auto-created from Fathom call title.'
+                    )
+                    if prospect:
+                        prospect_id = prospect['id']
+                        confidence = 'auto_title'
+                        stats['contacts_created'] += 1
+                        needs_review = False
 
             if not prospect_id:
                 llm_extraction = extract_contact_with_llm(title, summary, transcript, invitees)
@@ -364,33 +501,9 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
                     needs_review = True
                     stats['needs_review_count'] += 1
 
-            if not prospect_id:
-                external_invitees = get_external_invitees(invitees, recorded_by_email)
-                if len(external_invitees) == 1:
-                    prospect = create_prospect_from_invitee(
-                        supabase,
-                        external_invitees[0],
-                        'Auto-created from Fathom calendar invitee.'
-                    )
-                    if prospect:
-                        prospect_id = prospect['id']
-                        confidence = 'auto_invitee'
-                        stats['contacts_created'] += 1
-                        needs_review = False
-
-            if not prospect_id:
-                inferred_name = derive_external_name_from_title(title, recorded_by_name)
-                if inferred_name:
-                    prospect = create_prospect_from_invitee(
-                        supabase,
-                        {'name': inferred_name, 'email': None},
-                        'Auto-created from Fathom call title.'
-                    )
-                    if prospect:
-                        prospect_id = prospect['id']
-                        confidence = 'auto_title'
-                        stats['contacts_created'] += 1
-                        needs_review = False
+            if not prospect_id and not needs_review:
+                needs_review = True
+                stats['needs_review_count'] += 1
 
             if existing_call:
                 update_data = {}
@@ -406,6 +519,10 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
 
                 if llm_extraction is not None:
                     update_data['llm_extraction'] = llm_extraction
+                if summary:
+                    update_data['summary'] = summary[:5000]
+                if recorded_by_email:
+                    update_data['recorded_by_email'] = recorded_by_email
 
                 if update_data:
                     update_data['updated_at'] = datetime.now(timezone.utc).isoformat()
@@ -420,6 +537,7 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
                 'summary': summary[:5000] if summary else None,
                 'call_date': meeting.get('created_at') or meeting.get('start_time') or datetime.now(timezone.utc).isoformat(),
                 'duration_minutes': meeting.get('duration_minutes') or meeting.get('duration'),
+                'recorded_by_email': recorded_by_email,
                 'prospect_id': prospect_id,
                 'auto_matched': prospect_id is not None and confidence != 'manual',
                 'match_confidence': confidence,

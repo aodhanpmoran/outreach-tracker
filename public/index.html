@@ -2244,7 +2244,7 @@
         }
 
         async function moveToStatus(id, status) {
-            await fetch(`/api/prospects/${id}/status`, {
+            await fetch(`/api/prospect?id=${id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status })
@@ -2330,7 +2330,7 @@
             };
 
             if (id) {
-                await fetch(`/api/prospects/${id}`, {
+                await fetch(`/api/prospect?id=${id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
