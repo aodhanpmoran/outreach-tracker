@@ -1262,6 +1262,134 @@
             font-weight: 600;
             font-size: 11px;
         }
+
+        .unmatched-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 1000;
+        }
+
+        .unmatched-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .unmatched-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(900px, 92vw);
+            max-height: 80vh;
+            background: #1b1b1b;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 20px;
+            z-index: 1001;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            overflow: hidden;
+        }
+
+        .unmatched-modal.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .unmatched-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .unmatched-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .unmatched-close {
+            background: transparent;
+            border: none;
+            color: #aaa;
+            cursor: pointer;
+            font-size: 20px;
+        }
+
+        .unmatched-list {
+            overflow-y: auto;
+            max-height: 65vh;
+            padding-right: 4px;
+        }
+
+        .unmatched-call-item {
+            border: 1px solid #2f2f2f;
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 12px;
+            background: #212121;
+        }
+
+        .unmatched-call-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .unmatched-call-title {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .unmatched-call-date {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .unmatched-call-summary {
+            font-size: 13px;
+            color: #aaa;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+
+        .unmatched-call-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .unmatched-input {
+            background: #141414;
+            border: 1px solid #333;
+            color: #eee;
+            border-radius: 6px;
+            padding: 6px 8px;
+            font-size: 12px;
+            min-width: 180px;
+        }
+
+        .unmatched-action-btn {
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .unmatched-action-btn.danger {
+            background: #b91c1c;
+        }
     </style>
 </head>
 <body>
@@ -1270,6 +1398,17 @@
         <div class="goal-float-handle"></div>
         <div class="goal-float-amount">€5k → €10k</div>
         <div class="goal-float-why">For <strong>Paula</strong> & the kids</div>
+    </div>
+
+    <div class="unmatched-overlay" id="unmatchedOverlay" onclick="closeUnmatchedCalls()"></div>
+    <div class="unmatched-modal" id="unmatchedModal">
+        <div class="unmatched-header">
+            <div class="unmatched-title">Unmatched Calls</div>
+            <button class="unmatched-close" onclick="closeUnmatchedCalls()">×</button>
+        </div>
+        <div class="unmatched-list" id="unmatchedList">
+            <!-- Rendered by JS -->
+        </div>
     </div>
 
     <div class="container">
@@ -2821,8 +2960,162 @@
         }
 
         function showUnmatchedCalls() {
-            // For now, just alert - could expand to a modal later
-            window.open('/api/fathom-calls?unmatched=true', '_blank');
+            openUnmatchedCalls();
+        }
+
+        function openUnmatchedCalls() {
+            document.getElementById('unmatchedOverlay').classList.add('active');
+            document.getElementById('unmatchedModal').classList.add('active');
+            loadUnmatchedCalls();
+        }
+
+        function closeUnmatchedCalls() {
+            document.getElementById('unmatchedOverlay').classList.remove('active');
+            document.getElementById('unmatchedModal').classList.remove('active');
+        }
+
+        function deriveNameFromEmail(email) {
+            if (!email) return '';
+            const local = email.split('@')[0].split('+')[0]
+                .replace(/[^a-zA-Z._-]/g, ' ')
+                .replace(/[._-]+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            if (!local) return '';
+            return local.split(' ').map(part => part ? part[0].toUpperCase() + part.slice(1).toLowerCase() : '').join(' ');
+        }
+
+        function guessParticipant(call) {
+            const recordedBy = call.raw_data && call.raw_data.recorded_by ? call.raw_data.recorded_by.email : '';
+            const invitees = (call.raw_data && call.raw_data.calendar_invitees) || [];
+            for (const invitee of invitees) {
+                if (!invitee || !invitee.email) continue;
+                if (recordedBy && invitee.email.toLowerCase() === recordedBy.toLowerCase()) continue;
+                return {
+                    name: invitee.name || invitee.full_name || invitee.display_name || deriveNameFromEmail(invitee.email),
+                    email: invitee.email
+                };
+            }
+            return {
+                name: deriveNameFromEmail(''),
+                email: ''
+            };
+        }
+
+        async function loadUnmatchedCalls() {
+            const list = document.getElementById('unmatchedList');
+            list.innerHTML = '<div class="calls-empty">Loading unmatched calls...</div>';
+
+            try {
+                const res = await fetch('/api/fathom-calls?unmatched=true&limit=100');
+                if (!res.ok) {
+                    list.innerHTML = '<div class="calls-empty">Failed to load unmatched calls</div>';
+                    return;
+                }
+                const calls = await res.json();
+                if (!calls || calls.length === 0) {
+                    list.innerHTML = '<div class="calls-empty">No unmatched calls 🎉</div>';
+                    return;
+                }
+
+                list.innerHTML = calls.map(call => {
+                    const callDate = call.call_date ? new Date(call.call_date).toLocaleDateString() : '';
+                    const summaryText = call.summary ||
+                        (call.raw_data && (call.raw_data.default_summary || call.raw_data.summary || call.raw_data.meeting_title)) ||
+                        '';
+                    const callLink = call.raw_data && (call.raw_data.share_url || call.raw_data.url);
+                    const suggestion = guessParticipant(call);
+
+                    return `
+                        <div class="unmatched-call-item" id="unmatched-call-${call.id}">
+                            <div class="unmatched-call-meta">
+                                <div class="unmatched-call-title">${escapeHtml(call.title)}</div>
+                                <div class="unmatched-call-date">${callDate}</div>
+                            </div>
+                            ${summaryText ? `<div class="unmatched-call-summary">${escapeHtml(truncateText(summaryText, 200))}</div>` : ''}
+                            ${callLink ? `<a class="call-link" href="${escapeHtml(callLink)}" target="_blank" rel="noopener">Open in Fathom</a>` : ''}
+                            <div class="unmatched-call-actions">
+                                <input class="unmatched-input" name="name" placeholder="Prospect name" value="${escapeHtml(suggestion.name || '')}">
+                                <input class="unmatched-input" name="email" placeholder="Email" value="${escapeHtml(suggestion.email || '')}">
+                                <button class="unmatched-action-btn" onclick="createProspectForCall(${call.id})">Create & Link</button>
+                                <button class="unmatched-action-btn danger" onclick="deleteUnmatchedCall(${call.id})">Delete Call</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                console.error('Failed to load unmatched calls:', error);
+                list.innerHTML = '<div class="calls-empty">Failed to load unmatched calls</div>';
+            }
+        }
+
+        async function createProspectForCall(callId) {
+            const container = document.getElementById(`unmatched-call-${callId}`);
+            if (!container) return;
+
+            const nameInput = container.querySelector('input[name="name"]');
+            const emailInput = container.querySelector('input[name="email"]');
+            const name = nameInput ? nameInput.value.trim() : '';
+            const email = emailInput ? emailInput.value.trim() : '';
+
+            if (!name && !email) {
+                alert('Please provide a name or email.');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/prospects', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: name || deriveNameFromEmail(email) || email,
+                        email: email || null,
+                        status: 'contacted',
+                        notes: 'Created from unmatched Fathom call.'
+                    })
+                });
+
+                if (!res.ok) {
+                    alert('Failed to create prospect.');
+                    return;
+                }
+
+                const prospect = await res.json();
+                if (!prospect || !prospect.id) {
+                    alert('Prospect created, but no ID returned.');
+                    return;
+                }
+
+                await fetch(`/api/fathom-call?id=${callId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prospect_id: prospect.id })
+                });
+
+                container.remove();
+                checkUnmatchedCalls();
+            } catch (error) {
+                console.error('Failed to create prospect:', error);
+                alert('Failed to create prospect.');
+            }
+        }
+
+        async function deleteUnmatchedCall(callId) {
+            if (!confirm('Delete this call? This cannot be undone.')) return;
+            try {
+                const res = await fetch(`/api/fathom-call?id=${callId}`, { method: 'DELETE' });
+                if (!res.ok) {
+                    alert('Failed to delete call.');
+                    return;
+                }
+                const container = document.getElementById(`unmatched-call-${callId}`);
+                if (container) container.remove();
+                checkUnmatchedCalls();
+            } catch (error) {
+                console.error('Failed to delete call:', error);
+                alert('Failed to delete call.');
+            }
         }
 
         // Check for unmatched calls on page load
