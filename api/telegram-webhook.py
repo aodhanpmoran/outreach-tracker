@@ -349,13 +349,15 @@ def build_confirmation(today_result, tomorrow_result, ignored_lines):
     return "\n".join(lines)
 
 class handler(BaseHTTPRequestHandler):
-    def _handle_fathom_sync(self, supabase):
+    def _handle_fathom_sync(self, supabase, since_hours=24, label=None):
         """Trigger Fathom sync and return summary"""
         try:
-            stats = sync_fathom_meetings(supabase, sync_type='telegram_manual', since_hours=24)
+            stats = sync_fathom_meetings(supabase, sync_type='telegram_manual', since_hours=since_hours)
 
+            window_label = label or f"Last {round(since_hours / 24, 1)} days"
             lines = [
                 "Fathom Sync Complete",
+                f"Window: {window_label}",
                 "",
                 f"Processed: {stats['meetings_processed']}",
                 f"New calls: {stats['meetings_new']}",
@@ -522,6 +524,14 @@ class handler(BaseHTTPRequestHandler):
                 if command in ['sync', '']:
                     # Trigger sync and report
                     response_message = self._handle_fathom_sync(supabase)
+                elif command in ['month', 'last-month', 'lastmonth', '30d']:
+                    response_message = self._handle_fathom_sync(supabase, since_hours=24 * 30, label='Last 30 days')
+                elif command.isdigit():
+                    days = max(1, min(int(command), 31))
+                    response_message = self._handle_fathom_sync(supabase, since_hours=24 * days, label=f'Last {days} days')
+                elif command.endswith('d') and command[:-1].isdigit():
+                    days = max(1, min(int(command[:-1]), 31))
+                    response_message = self._handle_fathom_sync(supabase, since_hours=24 * days, label=f'Last {days} days')
                 elif command == 'recent':
                     # List recent calls
                     response_message = self._handle_fathom_recent(supabase)
@@ -537,6 +547,8 @@ class handler(BaseHTTPRequestHandler):
                     response_message = (
                         "Fathom Commands:\n"
                         "/fathom - Sync recent calls\n"
+                        "/fathom month - Sync last 30 days\n"
+                        "/fathom 7d - Sync last 7 days\n"
                         "/fathom recent - List last 5 calls\n"
                         "/fathom unmatched - Show calls needing review\n"
                         "/fathom link <call_id> <prospect_id> - Link call to contact"

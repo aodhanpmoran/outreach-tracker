@@ -790,9 +790,27 @@ class handler(BaseHTTPRequestHandler):
         self._send_json(200, response.data[0] if response.data else None)
 
     def _handle_sync_post(self):
+        query = self._parse_query()
+        since_hours = 24
+        raw_hours = query.get('since_hours', [None])[0]
+        raw_days = query.get('since_days', [None])[0] or query.get('days', [None])[0]
+
+        try:
+            if raw_days is not None:
+                since_hours = float(raw_days) * 24
+            elif raw_hours is not None:
+                since_hours = float(raw_hours)
+        except ValueError:
+            since_hours = 24
+
+        if since_hours <= 0:
+            since_hours = 24
+
+        since_hours = min(since_hours, 24 * 31)
+
         supabase = get_supabase()
-        stats = sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=24)
-        self._send_json(200, {'success': True, 'stats': stats})
+        stats = sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=since_hours)
+        self._send_json(200, {'success': True, 'stats': stats, 'since_hours': since_hours})
 
     def _handle_sync_get(self):
         supabase = get_supabase()
