@@ -99,6 +99,111 @@ def match_to_prospect(supabase, title, invitees=None):
     return None, None, None
 
 
+def get_meeting_invitees(meeting):
+    invitees = meeting.get('attendees') or meeting.get('invitees') or meeting.get('calendar_invitees') or []
+    if not invitees:
+        raw = meeting.get('raw_data') or {}
+        invitees = raw.get('calendar_invitees') or raw.get('invitees') or raw.get('attendees') or []
+    return invitees
+
+
+def get_recorded_by_email(meeting):
+    recorded_by = meeting.get('recorded_by') or (meeting.get('raw_data') or {}).get('recorded_by') or {}
+    return recorded_by.get('email')
+
+
+def get_recorded_by_name(meeting):
+    recorded_by = meeting.get('recorded_by') or (meeting.get('raw_data') or {}).get('recorded_by') or {}
+    return recorded_by.get('name')
+
+
+def get_external_invitees(invitees, recorded_by_email):
+    external = []
+    recorded_by_email = (recorded_by_email or '').lower()
+    for invitee in invitees:
+        if not isinstance(invitee, dict):
+            continue
+        if invitee.get('is_external') is True:
+            external.append(invitee)
+            continue
+        email = invitee.get('email')
+        if not email:
+            continue
+        if recorded_by_email and email.lower() == recorded_by_email:
+            continue
+        external.append(invitee)
+    return external
+
+
+def find_existing_prospect_by_email(supabase, email):
+    if not email:
+        return None
+    result = supabase.table('prospects').select('id,name,company,email').eq('email', email).execute()
+    if result.data:
+        return result.data[0]
+    return None
+
+
+def find_existing_prospect_by_name(supabase, name):
+    if not name:
+        return None
+    result = supabase.table('prospects').select('id,name,company,email').ilike('name', name).execute()
+    if result.data and len(result.data) == 1:
+        return result.data[0]
+    return None
+
+
+def create_prospect_from_invitee(supabase, invitee, notes_reason):
+    name = invitee.get('name') or invitee.get('full_name') or invitee.get('display_name')
+    email = invitee.get('email')
+
+    existing = find_existing_prospect_by_email(supabase, email)
+    if existing:
+        return existing
+
+    existing = find_existing_prospect_by_name(supabase, name)
+    if existing:
+        return existing
+
+    if not name and not email:
+        return None
+
+    try:
+        result = supabase.table('prospects').insert({
+            'name': name or email,
+            'company': None,
+            'email': email,
+            'status': 'contacted',
+            'llm_created': False,
+            'notes': notes_reason
+        }).execute()
+
+        if result.data:
+            return result.data[0]
+    except Exception as e:
+        print(f"Failed to create prospect from invitee: {e}")
+
+    return None
+
+
+def derive_external_name_from_title(title, recorded_by_name):
+    candidates = parse_meeting_title(title)
+    if not candidates:
+        return None
+    if recorded_by_name:
+        recorded_parts = [p for p in recorded_by_name.lower().split() if p]
+        filtered = []
+        for candidate in candidates:
+            cand_lower = candidate.lower()
+            if any(part in cand_lower for part in recorded_parts):
+                continue
+            filtered.append(candidate)
+        candidates = filtered
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
+
+
 def extract_contact_with_llm(title, summary, transcript_snippet, invitees):
     """Use OpenAI to extract contact info and classify relationship"""
     api_key = os.environ.get("OPENAI_API_KEY")
@@ -223,15 +328,16 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
             if not recording_id:
                 continue
 
-            existing = supabase.table('fathom_calls').select('id').eq('fathom_recording_id', str(recording_id)).execute()
-            if existing.data:
+            existing = supabase.table('fathom_calls').select('id, prospect_id').eq('fathom_recording_id', str(recording_id)).execute()
+            existing_call = existing.data[0] if existing.data else None
+            if existing_call and existing_call.get('prospect_id'):
                 continue
-
-            stats['meetings_new'] += 1
 
             title = meeting.get('title', 'Untitled Meeting')
             summary = meeting.get('summary', '')
-            invitees = meeting.get('attendees') or meeting.get('invitees') or []
+            invitees = get_meeting_invitees(meeting)
+            recorded_by_email = get_recorded_by_email(meeting)
+            recorded_by_name = get_recorded_by_name(meeting)
             transcript = meeting.get('transcript', '')
 
             prospect_id, confidence, matched_prospect = match_to_prospect(supabase, title, invitees)
@@ -257,6 +363,56 @@ def sync_fathom_meetings(supabase, sync_type='api_manual', since_hours=2):
                 else:
                     needs_review = True
                     stats['needs_review_count'] += 1
+
+            if not prospect_id:
+                external_invitees = get_external_invitees(invitees, recorded_by_email)
+                if len(external_invitees) == 1:
+                    prospect = create_prospect_from_invitee(
+                        supabase,
+                        external_invitees[0],
+                        'Auto-created from Fathom calendar invitee.'
+                    )
+                    if prospect:
+                        prospect_id = prospect['id']
+                        confidence = 'auto_invitee'
+                        stats['contacts_created'] += 1
+                        needs_review = False
+
+            if not prospect_id:
+                inferred_name = derive_external_name_from_title(title, recorded_by_name)
+                if inferred_name:
+                    prospect = create_prospect_from_invitee(
+                        supabase,
+                        {'name': inferred_name, 'email': None},
+                        'Auto-created from Fathom call title.'
+                    )
+                    if prospect:
+                        prospect_id = prospect['id']
+                        confidence = 'auto_title'
+                        stats['contacts_created'] += 1
+                        needs_review = False
+
+            if existing_call:
+                update_data = {}
+                if prospect_id is not None:
+                    update_data.update({
+                        'prospect_id': prospect_id,
+                        'auto_matched': confidence != 'manual',
+                        'match_confidence': confidence,
+                        'needs_review': needs_review
+                    })
+                else:
+                    update_data['needs_review'] = True
+
+                if llm_extraction is not None:
+                    update_data['llm_extraction'] = llm_extraction
+
+                if update_data:
+                    update_data['updated_at'] = datetime.now(timezone.utc).isoformat()
+                    supabase.table('fathom_calls').update(update_data).eq('id', existing_call['id']).execute()
+                continue
+
+            stats['meetings_new'] += 1
 
             call_data = {
                 'fathom_recording_id': str(recording_id),

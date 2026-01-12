@@ -6,6 +6,10 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from supabase import create_client
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fathom import sync_fathom_meetings
 
 MAX_TASKS = 3
 
@@ -348,66 +352,16 @@ class handler(BaseHTTPRequestHandler):
     def _handle_fathom_sync(self, supabase):
         """Trigger Fathom sync and return summary"""
         try:
-            import requests
-            from datetime import timezone
-
-            api_key = os.environ.get("FATHOM_API_KEY")
-            if not api_key:
-                return "Error: FATHOM_API_KEY not configured"
-
-            # Fetch recent meetings (last 24 hours for manual sync)
-            since_date = datetime.now(timezone.utc) - timedelta(hours=24)
-
-            response = requests.get(
-                'https://api.fathom.ai/external/v1/meetings',
-                headers={'X-Api-Key': api_key},
-                params={'created_after': since_date.isoformat()},
-                timeout=30
-            )
-
-            if response.status_code == 429:
-                return "Error: Fathom API rate limit exceeded. Try again later."
-
-            response.raise_for_status()
-            meetings = response.json()
-
-            if isinstance(meetings, dict):
-                meetings_list = meetings.get('items') or meetings.get('calls') or meetings.get('data') or []
-            else:
-                meetings_list = meetings or []
-
-            # Count stats
-            new_count = 0
-            existing_count = 0
-
-            for meeting in meetings_list:
-                recording_id = meeting.get('recording_id') or meeting.get('id')
-                if not recording_id:
-                    continue
-
-                existing = supabase.table('fathom_calls').select('id').eq('fathom_recording_id', str(recording_id)).execute()
-                if existing.data:
-                    existing_count += 1
-                else:
-                    new_count += 1
-
-            # Get unmatched count
-            unmatched = supabase.table('fathom_calls').select('id').is_('prospect_id', 'null').execute()
-            unmatched_count = len(unmatched.data) if unmatched.data else 0
+            stats = sync_fathom_meetings(supabase, sync_type='telegram_manual', since_hours=24)
 
             lines = [
-                "Fathom Sync Status",
+                "Fathom Sync Complete",
                 "",
-                f"Calls in last 24h: {len(meetings_list)}",
-                f"- Already synced: {existing_count}",
-                f"- New to sync: {new_count}",
-                "",
-                f"Unmatched calls: {unmatched_count}"
+                f"Processed: {stats['meetings_processed']}",
+                f"New calls: {stats['meetings_new']}",
+                f"Contacts created: {stats['contacts_created']}",
+                f"Needs review: {stats['needs_review_count']}"
             ]
-
-            if new_count > 0:
-                lines.append("")
-                lines.append("Run the hourly cron or deploy to sync new calls.")
 
             return "\n".join(lines)
 
