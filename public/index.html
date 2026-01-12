@@ -1184,6 +1184,14 @@
             margin-top: 8px;
         }
 
+        .call-action-items-title {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
         .call-action-item {
             display: flex;
             align-items: flex-start;
@@ -2679,6 +2687,12 @@
         });
 
         // Fathom Call History
+        function truncateText(text, maxLength = 180) {
+            if (!text) return '';
+            if (text.length <= maxLength) return text;
+            return text.slice(0, maxLength).trim() + '…';
+        }
+
         async function loadProspectCalls(prospectId) {
             const callsSection = document.getElementById('callsSection');
             const callsList = document.getElementById('callsList');
@@ -2706,12 +2720,13 @@
                 callsSection.style.display = 'block';
                 callsList.innerHTML = calls.map(call => {
                     const callDate = call.call_date ? new Date(call.call_date).toLocaleDateString() : '';
-                    const actionItems = call.fathom_action_items || [];
+                    const actionItems = (call.fathom_action_items || []).slice(0, 3);
 
                     let actionItemsHtml = '';
                     if (actionItems.length > 0) {
                         actionItemsHtml = `
                             <div class="call-action-items">
+                                <div class="call-action-items-title">Top action items</div>
                                 ${actionItems.map(item => `
                                     <div class="call-action-item">
                                         <span class="call-action-item-text">${escapeHtml(item.description)}</span>
@@ -2734,7 +2749,7 @@
                         <div class="call-item">
                             <div class="call-date">${callDate}</div>
                             <div class="call-title">${escapeHtml(call.title)}</div>
-                            ${summaryText ? `<div class="call-summary">${escapeHtml(summaryText)}</div>` : ''}
+                            ${summaryText ? `<div class="call-summary">${escapeHtml(truncateText(summaryText))}</div>` : ''}
                             ${callLink ? `<a class="call-link" href="${escapeHtml(callLink)}" target="_blank" rel="noopener">Open in Fathom</a>` : ''}
                             ${actionItemsHtml}
                         </div>
