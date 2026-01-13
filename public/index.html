@@ -96,6 +96,7 @@
 
         @media (max-width: 1200px) { .pipeline { grid-template-columns: repeat(3, 1fr); } }
         @media (max-width: 768px) { .pipeline { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 600px) { .pipeline { grid-template-columns: 1fr; } }
 
         .column {
             background: #1a1a1a;
@@ -1114,6 +1115,360 @@
             .history-panel {
                 width: 100%;
                 right: -100%;
+            }
+        }
+
+        /* Comprehensive Mobile Styles */
+        @media (max-width: 600px) {
+            /* Container and spacing */
+            .container {
+                padding: 16px 12px;
+            }
+
+            /* Header - stack on very small screens */
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+                margin-bottom: 16px;
+            }
+
+            h1 {
+                font-size: 20px;
+            }
+
+            .header-actions {
+                width: 100%;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .header-actions button,
+            .header-actions .view-toggle,
+            .header-actions .btn {
+                font-size: 13px;
+            }
+
+            /* Make buttons more touch-friendly */
+            .btn {
+                padding: 10px 16px;
+                min-height: 44px;
+                white-space: nowrap;
+            }
+
+            .unmatched-calls-btn {
+                font-size: 12px;
+                padding: 8px 12px;
+            }
+
+            .history-btn {
+                padding: 8px 12px;
+            }
+
+            .view-toggle button {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+
+            /* Stats grid - smaller min-width */
+            .stats {
+                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+                gap: 12px;
+                margin-bottom: 24px;
+            }
+
+            .stat-card {
+                padding: 12px;
+            }
+
+            .stat-value {
+                font-size: 24px;
+            }
+
+            .stat-label {
+                font-size: 11px;
+            }
+
+            /* One Thing - smaller font */
+            .one-thing {
+                padding: 16px;
+                margin-bottom: 16px;
+            }
+
+            .one-thing-input {
+                font-size: 20px;
+            }
+
+            /* Daily tasks */
+            .daily-tasks {
+                padding: 16px;
+                margin-bottom: 16px;
+            }
+
+            /* Goal section */
+            .goal-section {
+                padding: 12px;
+                margin-bottom: 16px;
+            }
+
+            /* Pipeline - already single column from earlier rule */
+            .pipeline {
+                gap: 8px;
+                margin-bottom: 24px;
+            }
+
+            /* Prospect cards - prevent text overflow */
+            .prospect-card {
+                padding: 10px;
+            }
+
+            .prospect-name {
+                font-size: 14px;
+                word-break: break-word;
+                overflow-wrap: break-word;
+            }
+
+            .prospect-company {
+                font-size: 12px;
+                word-break: break-word;
+                overflow-wrap: break-word;
+            }
+
+            .prospect-followup {
+                font-size: 10px;
+                margin-top: 6px;
+            }
+
+            .quick-actions {
+                margin-top: 6px;
+            }
+
+            .quick-btn {
+                font-size: 9px;
+                padding: 4px 6px;
+            }
+
+            /* Column headers */
+            .column-header {
+                padding: 10px 12px;
+            }
+
+            .column-title {
+                font-size: 12px;
+            }
+
+            .column-count {
+                font-size: 11px;
+                padding: 2px 6px;
+            }
+
+            .column-body {
+                padding: 8px;
+            }
+
+            /* List view - add horizontal scroll */
+            .list-view {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .prospects-table {
+                min-width: 600px;
+            }
+
+            .prospects-table th,
+            .prospects-table td {
+                padding: 10px 12px;
+                font-size: 12px;
+            }
+
+            .prospects-table th {
+                font-size: 11px;
+            }
+
+            /* Modal - full width on mobile */
+            .modal {
+                max-width: calc(100vw - 24px);
+                padding: 20px 16px;
+                margin: 12px;
+            }
+
+            .modal h2 {
+                font-size: 18px;
+                margin-bottom: 16px;
+            }
+
+            .form-group {
+                margin-bottom: 14px;
+            }
+
+            .form-group label {
+                font-size: 12px;
+            }
+
+            .form-group input,
+            .form-group select,
+            .form-group textarea {
+                padding: 10px;
+                font-size: 14px;
+            }
+
+            .form-actions {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .form-actions .btn {
+                width: 100%;
+            }
+
+            /* Unmatched calls modal */
+            .unmatched-modal {
+                width: calc(100vw - 24px);
+                max-width: calc(100vw - 24px);
+                padding: 16px;
+                max-height: 90vh;
+            }
+
+            .unmatched-call-item {
+                padding: 12px;
+            }
+
+            .unmatched-call-title {
+                font-size: 13px;
+                word-break: break-word;
+            }
+
+            .unmatched-call-date {
+                font-size: 11px;
+            }
+
+            .unmatched-call-summary {
+                font-size: 12px;
+            }
+
+            .unmatched-call-meta {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 4px;
+            }
+
+            .unmatched-call-actions {
+                gap: 6px;
+                margin-top: 8px;
+            }
+
+            .unmatched-input {
+                font-size: 13px;
+                padding: 6px 10px;
+            }
+
+            .unmatched-action-btn {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+
+            /* Floating goal - adjust position */
+            .goal-float {
+                top: 10px;
+                right: 10px;
+                padding: 12px 16px;
+                min-width: 160px;
+            }
+
+            .goal-float-amount {
+                font-size: 20px;
+            }
+
+            .goal-float-why {
+                font-size: 11px;
+            }
+
+            /* Day toggle */
+            .day-toggle button {
+                padding: 8px 16px;
+                font-size: 13px;
+            }
+
+            /* Readings */
+            .readings-header {
+                padding: 8px 12px;
+            }
+
+            .readings-week {
+                font-size: 11px;
+            }
+
+            .readings-count {
+                font-size: 11px;
+            }
+
+            .reading-text {
+                font-size: 11px;
+            }
+
+            /* Celebration - responsive text sizes */
+            .celebration-emoji {
+                font-size: 80px;
+            }
+
+            .celebration-title {
+                font-size: 32px;
+            }
+
+            .celebration-subtitle {
+                font-size: 16px;
+            }
+
+            .celebration-btn {
+                padding: 12px 32px;
+                font-size: 16px;
+            }
+
+            /* Call history in modal */
+            .call-item {
+                padding: 10px;
+            }
+        }
+
+        /* Extra small screens */
+        @media (max-width: 400px) {
+            .container {
+                padding: 12px 8px;
+            }
+
+            h1 {
+                font-size: 18px;
+            }
+
+            .stats {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+
+            .stat-value {
+                font-size: 20px;
+            }
+
+            .one-thing-input {
+                font-size: 18px;
+            }
+
+            .header-actions {
+                gap: 6px;
+            }
+
+            .btn {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+
+            .prospect-name {
+                font-size: 13px;
+            }
+
+            .prospect-company {
+                font-size: 11px;
             }
         }
 
