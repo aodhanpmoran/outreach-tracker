@@ -10,6 +10,64 @@ def get_supabase():
     key = os.environ.get("SUPABASE_KEY")
     return create_client(url, key)
 
+def normalize_tasks(raw_tasks):
+    """Normalize tasks from various formats into consistent structure."""
+    if raw_tasks is None:
+        return []
+
+    if isinstance(raw_tasks, str):
+        try:
+            raw_tasks = json.loads(raw_tasks) if raw_tasks else []
+        except json.JSONDecodeError:
+            return []
+
+    if not isinstance(raw_tasks, list):
+        return []
+
+    normalized = []
+    for item in raw_tasks:
+        if isinstance(item, dict):
+            normalized.append({
+                'text': item.get('text', ''),
+                'completed': bool(item.get('completed', False)),
+                'dbId': item.get('dbId') or item.get('db_id')
+            })
+        elif isinstance(item, str):
+            normalized.append({
+                'text': item,
+                'completed': False,
+                'dbId': None
+            })
+    return normalized
+
+def find_existing_task_id(supabase, date_str, text):
+    """Find existing task in history by date and text."""
+    if not text:
+        return None
+    response = supabase.table('tasks').select('id').eq('date_entered', date_str).eq('text', text).limit(1).execute()
+    if response.data:
+        return response.data[0].get('id')
+    return None
+
+def ensure_task_history(supabase, tasks, date_str):
+    """Ensure all tasks have entries in the tasks table for history tracking."""
+    updated = []
+    for task in tasks:
+        if task.get('text') and not task.get('dbId'):
+            existing_id = find_existing_task_id(supabase, date_str, task['text'])
+            if existing_id:
+                task['dbId'] = existing_id
+            else:
+                response = supabase.table('tasks').insert({
+                    'text': task['text'],
+                    'completed': task.get('completed', False),
+                    'date_entered': date_str
+                }).execute()
+                if response.data:
+                    task['dbId'] = response.data[0].get('id')
+        updated.append(task)
+    return updated
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         """Fetch daily planning by date (defaults to today)"""
@@ -44,10 +102,16 @@ class handler(BaseHTTPRequestHandler):
 
             # Upsert daily planning for specified date (or today if not specified)
             planning_date = data.get('date', datetime.now().date().isoformat())
+
+            # Normalize and ensure task history for all tasks with text
+            raw_tasks = data.get('tasks', [])
+            tasks = normalize_tasks(raw_tasks)
+            tasks = ensure_task_history(supabase, tasks, planning_date)
+
             planning_data = {
                 'date': planning_date,
                 'one_thing': data.get('oneThing', ''),
-                'tasks': json.dumps(data.get('tasks', [])),
+                'tasks': json.dumps(tasks),
                 'updated_at': datetime.now().isoformat()
             }
 
@@ -60,7 +124,7 @@ class handler(BaseHTTPRequestHandler):
             self.send_header('Content-type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
-            self.wfile.write(json.dumps({'success': True}).encode())
+            self.wfile.write(json.dumps({'success': True, 'tasks': tasks}).encode())
 
         except Exception as e:
             self.send_response(500)
