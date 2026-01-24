@@ -4,6 +4,8 @@ import os
 from urllib.parse import urlparse, parse_qs
 from supabase import create_client
 
+from _cors import set_cors
+
 def get_supabase():
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
@@ -26,7 +28,7 @@ class handler(BaseHTTPRequestHandler):
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            set_cors(self)
             self.end_headers()
             self.wfile.write(json.dumps(response.data[0] if response.data else None).encode())
         except Exception as e:
@@ -59,7 +61,7 @@ class handler(BaseHTTPRequestHandler):
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            set_cors(self)
             self.end_headers()
             self.wfile.write(json.dumps(response.data[0] if response.data else None).encode())
         except Exception as e:
@@ -80,7 +82,7 @@ class handler(BaseHTTPRequestHandler):
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            set_cors(self)
             self.end_headers()
             self.wfile.write(json.dumps({'success': True}).encode())
         except Exception as e:
@@ -107,7 +109,7 @@ class handler(BaseHTTPRequestHandler):
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            set_cors(self)
             self.end_headers()
             self.wfile.write(json.dumps(response.data[0] if response.data else None).encode())
         except Exception as e:
@@ -118,7 +120,5 @@ class handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, PUT, DELETE, PATCH, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        set_cors(self)
         self.end_headers()
