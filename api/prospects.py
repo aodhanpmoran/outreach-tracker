@@ -4,6 +4,8 @@ import os
 from supabase import create_client
 from urllib.parse import urlparse, parse_qs
 
+from _cors import set_cors
+
 def get_supabase():
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
@@ -21,7 +23,7 @@ class handler(BaseHTTPRequestHandler):
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            set_cors(self)
             self.end_headers()
             self.wfile.write(json.dumps(response.data).encode())
         except Exception as e:
@@ -49,7 +51,7 @@ class handler(BaseHTTPRequestHandler):
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            set_cors(self)
             self.end_headers()
             self.wfile.write(json.dumps(response.data[0]).encode())
         except Exception as e:
@@ -60,7 +62,5 @@ class handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        set_cors(self)
         self.end_headers()
