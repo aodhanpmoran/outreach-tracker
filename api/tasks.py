@@ -4,6 +4,8 @@ import os
 from urllib.parse import urlparse, parse_qs
 from supabase import create_client
 
+from _auth import require_api_key
+
 def get_supabase():
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
@@ -12,6 +14,9 @@ def get_supabase():
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         """List all tasks, optionally filtered by date or completion status"""
+        if not require_api_key(self):
+            return
+
         try:
             query = parse_qs(urlparse(self.path).query)
             date_entered = query.get('date_entered', [None])[0]
@@ -55,6 +60,9 @@ class handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         """Create a new task"""
+        if not require_api_key(self):
+            return
+
         try:
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)

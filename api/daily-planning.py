@@ -5,6 +5,8 @@ from datetime import datetime
 from urllib.parse import urlparse, parse_qs
 from supabase import create_client
 
+from _auth import require_api_key
+
 def get_supabase():
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
@@ -71,6 +73,9 @@ def ensure_task_history(supabase, tasks, date_str):
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         """Fetch daily planning by date (defaults to today)"""
+        if not require_api_key(self):
+            return
+
         try:
             query = parse_qs(urlparse(self.path).query)
             date_param = query.get('date', [None])[0]
@@ -93,6 +98,9 @@ class handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         """Save daily planning (one thing + tasks)"""
+        if not require_api_key(self):
+            return
+
         try:
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)

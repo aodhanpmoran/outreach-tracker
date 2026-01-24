@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from urllib.parse import urlparse, parse_qs
 from supabase import create_client
 
+from _auth import require_api_key
+
 def get_supabase():
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
@@ -17,6 +19,9 @@ class handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         """Get a single task by ID"""
+        if not require_api_key(self):
+            return
+
         try:
             task_id = self.get_id()
             if not task_id:
@@ -39,6 +44,9 @@ class handler(BaseHTTPRequestHandler):
 
     def do_PUT(self):
         """Update a task (full update)"""
+        if not require_api_key(self):
+            return
+
         try:
             task_id = self.get_id()
             if not task_id:
@@ -78,6 +86,9 @@ class handler(BaseHTTPRequestHandler):
 
     def do_PATCH(self):
         """Toggle task completion status"""
+        if not require_api_key(self):
+            return
+
         try:
             task_id = self.get_id()
             if not task_id:
@@ -115,6 +126,9 @@ class handler(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         """Delete a task"""
+        if not require_api_key(self):
+            return
+
         try:
             task_id = self.get_id()
             if not task_id:

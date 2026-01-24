@@ -8,6 +8,8 @@ from urllib.request import Request, urlopen
 from supabase import create_client
 import sys
 
+from _auth import require_api_key
+
 sync_fathom_meetings = None
 _fathom_import_error = None
 
@@ -481,10 +483,11 @@ class handler(BaseHTTPRequestHandler):
             if secret:
                 header_secret = self.headers.get('X-Telegram-Bot-Api-Secret-Token')
                 if header_secret != secret:
-                    self.send_response(401)
-                    self.send_header('Content-type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({'error': 'Unauthorized'}).encode())
+                    # Allow non-Telegram callers (e.g. manual testing) via API key.
+                    if not require_api_key(self):
+                        return
+            else:
+                if not require_api_key(self):
                     return
 
             content_length = int(self.headers.get('Content-Length', 0))

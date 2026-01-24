@@ -4,6 +4,8 @@ import os
 from urllib.parse import urlparse, parse_qs
 from supabase import create_client
 
+from _auth import require_api_key
+
 def get_supabase():
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
@@ -15,6 +17,9 @@ class handler(BaseHTTPRequestHandler):
         return query.get('id', [None])[0]
 
     def do_GET(self):
+        if not require_api_key(self):
+            return
+
         try:
             prospect_id = self.get_id()
             if not prospect_id:
@@ -36,6 +41,9 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({'error': str(e)}).encode())
 
     def do_PUT(self):
+        if not require_api_key(self):
+            return
+
         try:
             prospect_id = self.get_id()
             if not prospect_id:
@@ -69,6 +77,9 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({'error': str(e)}).encode())
 
     def do_DELETE(self):
+        if not require_api_key(self):
+            return
+
         try:
             prospect_id = self.get_id()
             if not prospect_id:

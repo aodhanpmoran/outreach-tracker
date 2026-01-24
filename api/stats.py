@@ -3,6 +3,8 @@ import json
 import os
 from supabase import create_client
 
+from _auth import require_api_key
+
 def get_supabase():
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
@@ -10,6 +12,9 @@ def get_supabase():
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        if not require_api_key(self):
+            return
+
         try:
             supabase = get_supabase()
 

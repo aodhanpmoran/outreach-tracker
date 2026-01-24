@@ -7,6 +7,8 @@ import resend
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from _auth import require_api_key
+
 def get_supabase():
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
@@ -214,16 +216,15 @@ def send_telegram_message(message):
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
-            # Verify cron secret (optional security)
+            # Authorize via cron secret OR API key
             auth_header = self.headers.get('Authorization')
             cron_secret = os.environ.get('CRON_SECRET')
 
-            if cron_secret and auth_header != f'Bearer {cron_secret}':
-                self.send_response(401)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({'error': 'Unauthorized'}).encode())
-                return
+            if cron_secret and auth_header == f'Bearer {cron_secret}':
+                pass
+            else:
+                if not require_api_key(self):
+                    return
 
             # Get stats and planning from Supabase
             supabase = get_supabase()
