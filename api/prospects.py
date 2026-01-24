@@ -4,6 +4,27 @@ import os
 from supabase import create_client
 from urllib.parse import urlparse, parse_qs
 
+ALLOWED_FIELDS = {
+    'id',
+    'name',
+    'company',
+    'email',
+    'linkedin',
+    'notes',
+    'status',
+    'next_followup',
+    'created_at',
+    'updated_at',
+}
+
+def _build_select(fields: str | None) -> str:
+    if not fields:
+        return '*'
+
+    requested = [f.strip() for f in fields.split(',') if f.strip()]
+    allowed = [f for f in requested if f in ALLOWED_FIELDS]
+    return ','.join(allowed) if allowed else '*'
+
 def get_supabase():
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
@@ -16,7 +37,7 @@ class handler(BaseHTTPRequestHandler):
             fields = query.get('fields', [None])[0]
 
             supabase = get_supabase()
-            select_fields = fields if fields else '*'
+            select_fields = _build_select(fields)
             response = supabase.table('prospects').select(select_fields).order('updated_at', desc=True).execute()
 
             self.send_response(200)
