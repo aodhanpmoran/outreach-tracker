@@ -9,6 +9,8 @@ from urllib.parse import urlparse, parse_qs
 from supabase import create_client
 import requests
 
+from _auth import require_api_key
+
 
 def get_supabase():
     url = os.environ.get("SUPABASE_URL")
@@ -890,6 +892,9 @@ class handler(BaseHTTPRequestHandler):
         return query.get('id', [None])[0]
 
     def do_GET(self):
+        if not require_api_key(self):
+            return
+
         try:
             query = self._parse_query()
             endpoint = self._get_endpoint(query)
@@ -908,6 +913,9 @@ class handler(BaseHTTPRequestHandler):
             self._send_error(500, str(e))
 
     def do_POST(self):
+        if not require_api_key(self):
+            return
+
         try:
             query = self._parse_query()
             endpoint = self._get_endpoint(query)

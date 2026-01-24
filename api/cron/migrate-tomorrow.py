@@ -4,6 +4,8 @@ import os
 from datetime import datetime, timedelta
 from supabase import create_client
 
+from _auth import require_api_key
+
 def get_supabase():
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
@@ -69,16 +71,15 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         """Migrate yesterday's tomorrow planning to today at midnight"""
         try:
-            # Verify cron secret (optional security)
+            # Authorize via cron secret OR API key
             auth_header = self.headers.get('Authorization')
             cron_secret = os.environ.get('CRON_SECRET')
 
-            if cron_secret and auth_header != f'Bearer {cron_secret}':
-                self.send_response(401)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({'error': 'Unauthorized'}).encode())
-                return
+            if cron_secret and auth_header == f'Bearer {cron_secret}':
+                pass
+            else:
+                if not require_api_key(self):
+                    return
 
             supabase = get_supabase()
 
