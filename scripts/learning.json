@@ -1,0 +1,24 @@
+{
+  "skip_domains": [],
+  "prefer_titles": [
+    "founder",
+    "ceo",
+    "head of",
+    "director",
+    "marketing",
+    "growth"
+  ],
+  "skip_keywords": [
+    "invoice",
+    "receipt",
+    "shipment",
+    "order",
+    "verse of the day",
+    "canvas.ox.ac.uk",
+    "delivery status notification"
+  ],
+  "min_exchanges": 1,
+  "max_days_between": 60,
+  "max_attendees": 10,
+  "min_duration_minutes": 15
+}

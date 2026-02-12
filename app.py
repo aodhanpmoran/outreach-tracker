@@ -1,10 +1,31 @@
 from flask import Flask, render_template, request, jsonify
 import sqlite3
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import os
 
 app = Flask(__name__, template_folder='public')
 DB_PATH = os.path.join(os.path.dirname(__file__), 'outreach.db')
+
+PIPELINE_STATUSES = {'contacted', 'responded', 'call_scheduled', 'closed'}
+NOISE_STATUSES = {'new', 'lost', 'pilot', 'client'}
+ACTIVE_DEAL_STATUSES = PIPELINE_STATUSES
+REQUIRED_ACTIVE_FIELDS = ['next_action', 'next_action_due_date', 'action_channel', 'action_objective']
+
+
+def validate_prospect_payload(data, target_status=None):
+    status = target_status or data.get('status', 'new')
+
+    if status in ACTIVE_DEAL_STATUSES:
+        missing = []
+        for field in REQUIRED_ACTIVE_FIELDS:
+            value = data.get(field)
+            if value is None or (isinstance(value, str) and not value.strip()):
+                missing.append(field)
+        if missing:
+            return f"Missing required fields for active deal: {', '.join(missing)}"
+
+    return None
+
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -23,10 +44,26 @@ def init_db():
             notes TEXT,
             status TEXT DEFAULT 'new',
             next_followup DATE,
+            next_action TEXT,
+            next_action_due_date DATE,
+            action_channel TEXT,
+            action_objective TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    # Safe additive migration for existing databases
+    for ddl in [
+        "ALTER TABLE prospects ADD COLUMN next_action TEXT",
+        "ALTER TABLE prospects ADD COLUMN next_action_due_date DATE",
+        "ALTER TABLE prospects ADD COLUMN action_channel TEXT",
+        "ALTER TABLE prospects ADD COLUMN action_objective TEXT"
+    ]:
+        try:
+            conn.execute(ddl)
+        except sqlite3.OperationalError:
+            pass
+
     conn.execute('''
         CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,7 +88,8 @@ def get_prospects():
     fields_param = request.args.get('fields')
     allowed_fields = {
         'id', 'name', 'company', 'email', 'linkedin', 'notes', 'status',
-        'next_followup', 'created_at', 'updated_at'
+        'next_followup', 'next_action', 'next_action_due_date', 'action_channel', 'action_objective',
+        'created_at', 'updated_at'
     }
     if fields_param:
         requested = [f.strip() for f in fields_param.split(',') if f.strip()]
@@ -70,10 +108,17 @@ def get_prospects():
 @app.route('/api/prospects', methods=['POST'])
 def add_prospect():
     data = request.json
+    validation_error = validate_prospect_payload(data)
+    if validation_error:
+        return jsonify({'error': validation_error}), 400
+
     conn = get_db()
     cursor = conn.execute('''
-        INSERT INTO prospects (name, company, email, linkedin, notes, status, next_followup)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO prospects (
+            name, company, email, linkedin, notes, status, next_followup,
+            next_action, next_action_due_date, action_channel, action_objective
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         data.get('name'),
         data.get('company'),
@@ -81,7 +126,11 @@ def add_prospect():
         data.get('linkedin'),
         data.get('notes'),
         data.get('status', 'new'),
-        data.get('next_followup')
+        data.get('next_followup'),
+        data.get('next_action'),
+        data.get('next_action_due_date'),
+        data.get('action_channel'),
+        data.get('action_objective')
     ))
     conn.commit()
     prospect_id = cursor.lastrowid
@@ -92,11 +141,16 @@ def add_prospect():
 @app.route('/api/prospects/<int:id>', methods=['PUT'])
 def update_prospect(id):
     data = request.json
+    validation_error = validate_prospect_payload(data)
+    if validation_error:
+        return jsonify({'error': validation_error}), 400
+
     conn = get_db()
     conn.execute('''
         UPDATE prospects
         SET name = ?, company = ?, email = ?, linkedin = ?, notes = ?,
-            status = ?, next_followup = ?, updated_at = CURRENT_TIMESTAMP
+            status = ?, next_followup = ?, next_action = ?, next_action_due_date = ?,
+            action_channel = ?, action_objective = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
     ''', (
         data.get('name'),
@@ -106,6 +160,10 @@ def update_prospect(id):
         data.get('notes'),
         data.get('status'),
         data.get('next_followup'),
+        data.get('next_action'),
+        data.get('next_action_due_date'),
+        data.get('action_channel'),
+        data.get('action_objective'),
         id
     ))
     conn.commit()
@@ -124,10 +182,24 @@ def delete_prospect(id):
 @app.route('/api/prospects/<int:id>/status', methods=['PATCH'])
 def update_status(id):
     data = request.json
+    target_status = data.get('status')
+
     conn = get_db()
+    existing = conn.execute('SELECT * FROM prospects WHERE id = ?', (id,)).fetchone()
+    if not existing:
+        conn.close()
+        return jsonify({'error': 'Prospect not found'}), 404
+
+    merged = dict(existing)
+    merged.update(data or {})
+    validation_error = validate_prospect_payload(merged, target_status=target_status)
+    if validation_error:
+        conn.close()
+        return jsonify({'error': validation_error}), 400
+
     conn.execute('''
         UPDATE prospects SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
-    ''', (data.get('status'), id))
+    ''', (target_status, id))
     conn.commit()
     prospect = conn.execute('SELECT * FROM prospects WHERE id = ?', (id,)).fetchone()
     conn.close()
@@ -166,6 +238,52 @@ def get_stats():
               status_counts.get('client', 0) + status_counts.get('lost', 0)) /
              max(total - status_counts.get('new', 0), 1) * 100), 1
         ) if total > status_counts.get('new', 0) else 0
+    })
+
+
+@app.route('/api/hot-list', methods=['GET'])
+def get_hot_list():
+    conn = get_db()
+    prospects = conn.execute('''
+        SELECT * FROM prospects
+        WHERE status IN ('contacted', 'responded', 'call_scheduled', 'closed')
+        ORDER BY next_action_due_date ASC, updated_at DESC
+    ''').fetchall()
+    conn.close()
+
+    today = date.today()
+    in_14 = today + timedelta(days=14)
+
+    due_today = []
+    overdue = []
+    closing_14_days = []
+
+    for row in prospects:
+        p = dict(row)
+        due_raw = p.get('next_action_due_date')
+        if due_raw:
+            try:
+                due = datetime.strptime(due_raw, '%Y-%m-%d').date()
+                if due == today:
+                    due_today.append(p)
+                elif due < today:
+                    overdue.append(p)
+            except ValueError:
+                pass
+
+        close_signal_raw = p.get('next_followup') or p.get('next_action_due_date')
+        if close_signal_raw and p.get('status') in {'call_scheduled', 'closed'}:
+            try:
+                close_signal = datetime.strptime(close_signal_raw, '%Y-%m-%d').date()
+                if today <= close_signal <= in_14:
+                    closing_14_days.append(p)
+            except ValueError:
+                pass
+
+    return jsonify({
+        'due_today': due_today,
+        'overdue': overdue,
+        'closing_14_days': closing_14_days
     })
 
 # Tasks API

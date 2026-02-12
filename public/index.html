@@ -431,7 +431,40 @@
 
         .list-view { display: none; }
         .list-view.active { display: block; }
+        .hot-list-view { display: none; }
+        .hot-list-view.active { display: block; }
         .pipeline.hidden { display: none; }
+
+        .field-error {
+            color: var(--danger);
+            font-size: 11px;
+            margin-top: 6px;
+        }
+
+        .stage-criteria {
+            margin-top: 12px;
+            padding: 12px;
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            background: var(--surface-2);
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .hot-list-group {
+            background: var(--surface-1);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 14px;
+        }
+        .hot-list-group h3 {
+            font-size: 13px;
+            margin-bottom: 10px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
 
         .prospects-table {
             width: 100%;
@@ -2051,6 +2084,7 @@
                 </button>
                 <div class="view-toggle">
                     <button id="btnPipeline" class="active" onclick="setView('pipeline')">Pipeline</button>
+                    <button id="btnHotList" onclick="setView('hotlist')">Hot List</button>
                     <button id="btnList" onclick="setView('list')">List</button>
                 </div>
                 <button class="btn" onclick="openModal()">+ Add Prospect</button>
@@ -2212,6 +2246,21 @@
                 <tbody id="listBody"></tbody>
             </table>
         </div>
+
+        <div class="hot-list-view" id="hotListView">
+            <div class="hot-list-group">
+                <h3>Due Today</h3>
+                <div id="hotDueToday"></div>
+            </div>
+            <div class="hot-list-group">
+                <h3>Overdue</h3>
+                <div id="hotOverdue"></div>
+            </div>
+            <div class="hot-list-group">
+                <h3>Closing in 14 Days</h3>
+                <div id="hotClosing14"></div>
+            </div>
+        </div>
     </div>
 
     <div class="modal-overlay" id="modal">
@@ -2237,7 +2286,7 @@
                 </div>
                 <div class="form-group">
                     <label>Status</label>
-                    <select id="prospectStatus">
+                    <select id="prospectStatus" onchange="onStatusChange()">
                         <option value="new">Target</option>
                         <option value="contacted">Contacted</option>
                         <option value="responded">Present</option>
@@ -2248,14 +2297,40 @@
                         <option value="lost">Recontact</option>
                     </select>
                 </div>
+                <div class="stage-criteria" id="stageCriteria"></div>
                 <div class="form-group">
                     <label>Next Follow-up</label>
                     <input type="date" id="prospectFollowup">
                 </div>
                 <div class="form-group">
+                    <label>Next Action</label>
+                    <input type="text" id="prospectNextAction" placeholder="Specific next action">
+                </div>
+                <div class="form-group">
+                    <label>Next Action Due Date</label>
+                    <input type="date" id="prospectNextActionDueDate">
+                </div>
+                <div class="form-group">
+                    <label>Action Channel</label>
+                    <select id="prospectActionChannel">
+                        <option value="">Select channel</option>
+                        <option value="email">Email</option>
+                        <option value="call">Call</option>
+                        <option value="linkedin">LinkedIn</option>
+                        <option value="whatsapp">WhatsApp</option>
+                        <option value="meeting">Meeting</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Action Objective</label>
+                    <input type="text" id="prospectActionObjective" placeholder="What should this action achieve?">
+                </div>
+                <div class="form-group">
                     <label>Notes</label>
                     <textarea id="prospectNotes" placeholder="Add any relevant notes..."></textarea>
                 </div>
+                <div class="field-error" id="prospectFormError"></div>
                 <div class="calls-section" id="callsSection" style="display: none;">
                     <div class="calls-section-header">
                         <span class="calls-section-title">Call History</span>
@@ -2328,7 +2403,19 @@
             lost: 'Recontact'
         };
 
-        const PROSPECT_FIELDS = 'id,name,company,email,status,next_followup,updated_at';
+        const PROSPECT_FIELDS = 'id,name,company,email,status,next_followup,next_action,next_action_due_date,action_channel,action_objective,updated_at';
+        const ACTIVE_DEAL_STATUSES = ['contacted', 'responded', 'call_scheduled', 'closed'];
+        const PRIMARY_PIPELINE_STATUSES = ['contacted', 'responded', 'call_scheduled', 'closed'];
+        const STAGE_EXIT_CRITERIA = {
+            new: ['Identify a target account and contact path.'],
+            contacted: ['Outbound sent or call attempted.', 'Contact method is recorded.'],
+            responded: ['Prospect has replied.', 'Next action + due date defined.'],
+            call_scheduled: ['Meeting or proposal step scheduled.', 'Objective for that step defined.'],
+            closed: ['Commercial intent clear.', 'Close signal date exists (follow-up or due date).'],
+            pilot: ['Delivery work started.'],
+            client: ['Client is live.'],
+            lost: ['Reason captured for recontact later.']
+        };
 
         // Weekly Readings Data
         // First class date: Week 1 was Dec 31, 2025 (Wednesday)
@@ -2868,22 +2955,42 @@
         renderDailyTasks();
         syncDailyPlanningFromServer();
 
+        function isPrimaryPipelineProspect(prospect) {
+            return PRIMARY_PIPELINE_STATUSES.includes(prospect.status);
+        }
+
+        function validateActiveDeal(prospect) {
+            if (!ACTIVE_DEAL_STATUSES.includes(prospect.status)) return { valid: true };
+            const required = ['next_action', 'next_action_due_date', 'action_channel', 'action_objective'];
+            const missing = required.filter(field => !String(prospect[field] || '').trim());
+            return { valid: missing.length === 0, missing };
+        }
+
         function setView(view) {
             currentView = view;
             const pipeline = document.querySelector('.pipeline');
             const listView = document.getElementById('listView');
+            const hotListView = document.getElementById('hotListView');
             const btnPipeline = document.getElementById('btnPipeline');
+            const btnHotList = document.getElementById('btnHotList');
             const btnList = document.getElementById('btnList');
+
+            pipeline.classList.add('hidden');
+            listView.classList.remove('active');
+            hotListView.classList.remove('active');
+            btnPipeline.classList.remove('active');
+            btnHotList.classList.remove('active');
+            btnList.classList.remove('active');
 
             if (view === 'pipeline') {
                 pipeline.classList.remove('hidden');
-                listView.classList.remove('active');
                 btnPipeline.classList.add('active');
-                btnList.classList.remove('active');
+            } else if (view === 'hotlist') {
+                hotListView.classList.add('active');
+                btnHotList.classList.add('active');
+                renderHotListView();
             } else {
-                pipeline.classList.add('hidden');
                 listView.classList.add('active');
-                btnPipeline.classList.remove('active');
                 btnList.classList.add('active');
                 renderListView();
             }
@@ -2921,11 +3028,59 @@
             }).join('');
         }
 
+        function renderHotListItems(containerId, items, dateField) {
+            const target = document.getElementById(containerId);
+            if (!items.length) {
+                target.innerHTML = '<div class="empty-state" style="padding: 16px;"><p>None</p></div>';
+                return;
+            }
+            target.innerHTML = items.map(p => {
+                const dateValue = p[dateField] || p.next_followup || '';
+                return `<div class="prospect-card status-${p.status}" onclick="editProspect(prospects.find(pr => pr.id === ${p.id}))">
+                    <div class="prospect-name">${escapeHtml(p.name)}</div>
+                    ${p.company ? `<div class="prospect-company">${escapeHtml(p.company)}</div>` : ''}
+                    <div class="prospect-followup">Due: ${dateValue || 'n/a'}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderHotListView() {
+            const activeDeals = prospects.filter(p => PRIMARY_PIPELINE_STATUSES.includes(p.status));
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const in14 = new Date(today);
+            in14.setDate(in14.getDate() + 14);
+
+            const dueToday = [];
+            const overdue = [];
+            const closing14 = [];
+
+            activeDeals.forEach(p => {
+                if (!p.next_action_due_date) return;
+                const due = new Date(p.next_action_due_date);
+                due.setHours(0,0,0,0);
+                if (due.getTime() === today.getTime()) dueToday.push(p);
+                if (due < today) overdue.push(p);
+
+                const closeSignalRaw = p.next_followup || p.next_action_due_date;
+                const closeSignal = new Date(closeSignalRaw);
+                closeSignal.setHours(0,0,0,0);
+                if (['call_scheduled', 'closed'].includes(p.status) && closeSignal >= today && closeSignal <= in14) {
+                    closing14.push(p);
+                }
+            });
+
+            renderHotListItems('hotDueToday', dueToday, 'next_action_due_date');
+            renderHotListItems('hotOverdue', overdue, 'next_action_due_date');
+            renderHotListItems('hotClosing14', closing14, 'next_followup');
+        }
+
         async function loadProspects() {
             const res = await fetch(`/api/prospects?fields=${encodeURIComponent(PROSPECT_FIELDS)}`);
             prospects = await res.json();
             renderPipeline();
             if (currentView === 'list') renderListView();
+            if (currentView === 'hotlist') renderHotListView();
             loadStats(prospects);
         }
 
@@ -3005,14 +3160,21 @@
             Object.values(statusColumns).forEach(colId => {
                 document.getElementById(colId).innerHTML = '';
             });
-            prospects.forEach(p => {
-                const col = document.getElementById(statusColumns[p.status]);
-                if (col) col.appendChild(createProspectCard(p));
-            });
+
+            prospects
+                .filter(p => isPrimaryPipelineProspect(p))
+                .forEach(p => {
+                    const validity = validateActiveDeal(p);
+                    if (!validity.valid) return;
+                    const col = document.getElementById(statusColumns[p.status]);
+                    if (col) col.appendChild(createProspectCard(p));
+                });
+
             Object.entries(statusColumns).forEach(([status, colId]) => {
                 const col = document.getElementById(colId);
                 if (col.children.length === 0) {
-                    col.innerHTML = '<div class="empty-state"><p>No prospects</p></div>';
+                    const emptyText = PRIMARY_PIPELINE_STATUSES.includes(status) ? 'No active deals' : 'Excluded from active view';
+                    col.innerHTML = `<div class="empty-state"><p>${emptyText}</p></div>`;
                 }
             });
         }
@@ -3073,58 +3235,98 @@
             return div.innerHTML;
         }
 
-        function isValidApiResponse(res) {
+        function isJsonApiResponse(res) {
             if (!res || !res.ok) return false;
             const contentType = (res.headers.get('content-type') || '').toLowerCase();
+            // When path-style routes are missing in production, hosts can return HTML 200s.
             return contentType.includes('application/json');
         }
 
+        async function requestWithProspectFallback(primaryUrl, fallbackUrl, options) {
+            let res = await fetch(primaryUrl, options);
+            if (!isJsonApiResponse(res)) {
+                res = await fetch(fallbackUrl, options);
+            }
+            return res;
+        }
+
         async function updateProspectStatus(id, status) {
-            // Support both local Flask (/api/prospects/:id/status) and serverless (/api/prospect?id=...)
-            let res = await fetch(`/api/prospects/${id}/status`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status })
-            });
-            if (!isValidApiResponse(res)) {
-                res = await fetch(`/api/prospect?id=${id}`, {
+            return requestWithProspectFallback(
+                `/api/prospects/${id}/status`,
+                `/api/prospect?id=${id}`,
+                {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status })
-                });
-            }
-            return res;
+                }
+            );
         }
 
         async function deleteProspectById(id) {
-            // Support both local Flask and serverless endpoint shapes
-            let res = await fetch(`/api/prospects/${id}`, { method: 'DELETE' });
-            if (!isValidApiResponse(res)) {
-                res = await fetch(`/api/prospect?id=${id}`, { method: 'DELETE' });
-            }
-            return res;
+            return requestWithProspectFallback(
+                `/api/prospects/${id}`,
+                `/api/prospect?id=${id}`,
+                { method: 'DELETE' }
+            );
         }
 
         async function saveProspectById(id, data) {
-            // Support both local Flask and serverless endpoint shapes
-            let res = await fetch(`/api/prospects/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            if (!isValidApiResponse(res)) {
-                res = await fetch(`/api/prospect?id=${id}`, {
+            return requestWithProspectFallback(
+                `/api/prospects/${id}`,
+                `/api/prospect?id=${id}`,
+                {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
-                });
-            }
-            return res;
+                }
+            );
         }
 
         async function moveToStatus(id, status) {
-            await updateProspectStatus(id, status);
+            const prospect = prospects.find(p => p.id === id);
+            if (!prospect) return;
+
+            const stageChecks = {
+                contacted: () => !!(prospect.email || prospect.linkedin),
+                responded: () => !!String(prospect.notes || '').trim(),
+                call_scheduled: () => !!prospect.next_followup,
+                closed: () => !!(prospect.next_followup || prospect.next_action_due_date)
+            };
+            if (stageChecks[status] && !stageChecks[status]()) {
+                alert(`Cannot move to ${statusLabels[status]} yet. Open record and complete stage criteria.`);
+                return;
+            }
+
+            const payload = { ...prospect, status };
+            const activeValidation = validateActiveDeal(payload);
+            if (!activeValidation.valid) {
+                alert(`Cannot move to active stage. Missing: ${activeValidation.missing.join(', ')}`);
+                return;
+            }
+
+            const res = await updateProspectStatus(id, status);
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                alert(errorData.error || 'Could not update status');
+                return;
+            }
             loadProspects();
+        }
+
+        function onStatusChange() {
+            const status = document.getElementById('prospectStatus').value;
+            const isActive = ACTIVE_DEAL_STATUSES.includes(status);
+
+            ['prospectNextAction', 'prospectNextActionDueDate', 'prospectActionChannel', 'prospectActionObjective'].forEach(id => {
+                const input = document.getElementById(id);
+                input.required = isActive;
+            });
+
+            const criteria = STAGE_EXIT_CRITERIA[status] || [];
+            document.getElementById('stageCriteria').innerHTML = `
+                <strong>Stage exit criteria (${statusLabels[status] || status}):</strong>
+                <ul style="margin-top:6px; margin-left: 16px;">${criteria.map(c => `<li>${escapeHtml(c)}</li>`).join('')}</ul>
+            `;
         }
 
         function openModal(prospect = null) {
@@ -3137,6 +3339,7 @@
             const loadCallsBtn = document.getElementById('loadCallsBtn');
 
             form.reset();
+            document.getElementById('prospectFormError').textContent = '';
 
             if (prospect) {
                 currentModalProspectId = prospect.id;
@@ -3149,6 +3352,10 @@
                 document.getElementById('prospectLinkedin').value = prospect.linkedin || '';
                 document.getElementById('prospectStatus').value = prospect.status || 'new';
                 document.getElementById('prospectFollowup').value = prospect.next_followup || '';
+                document.getElementById('prospectNextAction').value = prospect.next_action || '';
+                document.getElementById('prospectNextActionDueDate').value = prospect.next_action_due_date || '';
+                document.getElementById('prospectActionChannel').value = prospect.action_channel || '';
+                document.getElementById('prospectActionObjective').value = prospect.action_objective || '';
                 document.getElementById('prospectNotes').value = prospect.notes || '';
 
                 if (SAFE_MODE) {
@@ -3166,6 +3373,7 @@
                 document.getElementById('prospectId').value = '';
                 callsSection.style.display = 'none';
             }
+            onStatusChange();
             modal.classList.add('active');
         }
 
@@ -3206,6 +3414,7 @@
         document.getElementById('prospectForm').onsubmit = async (e) => {
             e.preventDefault();
             const id = document.getElementById('prospectId').value;
+            const errorEl = document.getElementById('prospectFormError');
             const data = {
                 name: document.getElementById('prospectName').value,
                 company: document.getElementById('prospectCompany').value,
@@ -3213,18 +3422,37 @@
                 linkedin: document.getElementById('prospectLinkedin').value,
                 status: document.getElementById('prospectStatus').value,
                 next_followup: document.getElementById('prospectFollowup').value || null,
+                next_action: document.getElementById('prospectNextAction').value,
+                next_action_due_date: document.getElementById('prospectNextActionDueDate').value || null,
+                action_channel: document.getElementById('prospectActionChannel').value,
+                action_objective: document.getElementById('prospectActionObjective').value,
                 notes: document.getElementById('prospectNotes').value
             };
 
+            const validation = validateActiveDeal(data);
+            if (!validation.valid) {
+                errorEl.textContent = `For active deals, fill: ${validation.missing.join(', ')}`;
+                return;
+            }
+            errorEl.textContent = '';
+
+            let res;
             if (id) {
-                await saveProspectById(id, data);
+                res = await saveProspectById(id, data);
             } else {
-                await fetch('/api/prospects', {
+                res = await fetch('/api/prospects', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
             }
+
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                errorEl.textContent = errorData.error || 'Could not save prospect';
+                return;
+            }
+
             closeModal();
             loadProspects();
         };
@@ -3264,9 +3492,7 @@
         }
 
         setupDropZones();
-        if (SAFE_MODE) {
-            setView('list');
-        }
+        setView('pipeline');
         loadProspects();
         renderReadings();
 

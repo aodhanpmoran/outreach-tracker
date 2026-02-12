@@ -10,6 +10,10 @@ CREATE TABLE IF NOT EXISTS prospects (
     notes TEXT,
     status TEXT DEFAULT 'new',
     next_followup DATE,
+    next_action TEXT,
+    next_action_due_date DATE,
+    action_channel TEXT,
+    action_objective TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -56,6 +60,12 @@ CREATE POLICY "Allow all operations" ON tasks FOR ALL USING (true);
 -- =====================================================
 -- FATHOM INTEGRATION TABLES
 -- =====================================================
+
+-- Add additive prospect columns for weekly enforcement rollout
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS next_action TEXT;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS next_action_due_date DATE;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS action_channel TEXT;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS action_objective TEXT;
 
 -- Add llm_created column to prospects table (for auto-created contacts)
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS llm_created BOOLEAN DEFAULT FALSE;
