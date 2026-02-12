@@ -162,7 +162,8 @@ def get_stats():
         'conversion_rate': round((status_counts.get('closed', 0) / total * 100), 1) if total > 0 else 0,
         'response_rate': round(
             ((status_counts.get('responded', 0) + status_counts.get('call_scheduled', 0) +
-              status_counts.get('closed', 0) + status_counts.get('lost', 0)) /
+              status_counts.get('closed', 0) + status_counts.get('pilot', 0) +
+              status_counts.get('client', 0) + status_counts.get('lost', 0)) /
              max(total - status_counts.get('new', 0), 1) * 100), 1
         ) if total > status_counts.get('new', 0) else 0
     })

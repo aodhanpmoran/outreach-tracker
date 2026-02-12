@@ -61,12 +61,14 @@ def get_daily_planning(supabase):
 
 def build_daily_update_message(stats, planning):
     status_labels = {
-        'new': 'New',
+        'new': 'Target',
         'contacted': 'Contacted',
-        'responded': 'Responded',
-        'call_scheduled': 'Call Scheduled',
-        'closed': 'Closed',
-        'lost': 'Lost'
+        'responded': 'Present',
+        'call_scheduled': 'Propose',
+        'closed': 'Close',
+        'pilot': 'Delivery',
+        'client': 'Report',
+        'lost': 'Recontact'
     }
 
     lines = [

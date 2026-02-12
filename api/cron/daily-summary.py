@@ -49,12 +49,14 @@ def get_daily_planning(supabase):
 
 def build_email_html(stats, planning):
     status_labels = {
-        'new': 'New',
+        'new': 'Target',
         'contacted': 'Contacted',
-        'responded': 'Responded',
-        'call_scheduled': 'Call Scheduled',
-        'closed': 'Closed',
-        'lost': 'Lost'
+        'responded': 'Present',
+        'call_scheduled': 'Propose',
+        'closed': 'Close',
+        'pilot': 'Delivery',
+        'client': 'Report',
+        'lost': 'Recontact'
     }
 
     status_rows = ""
@@ -135,12 +137,14 @@ def build_email_html(stats, planning):
 
 def build_telegram_message(stats, planning):
     status_labels = {
-        'new': 'New',
+        'new': 'Target',
         'contacted': 'Contacted',
-        'responded': 'Responded',
-        'call_scheduled': 'Call Scheduled',
-        'closed': 'Closed',
-        'lost': 'Lost'
+        'responded': 'Present',
+        'call_scheduled': 'Propose',
+        'closed': 'Close',
+        'pilot': 'Delivery',
+        'client': 'Report',
+        'lost': 'Recontact'
     }
 
     lines = [

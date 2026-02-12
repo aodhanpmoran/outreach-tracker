@@ -8,7 +8,19 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        :root {
+        .safe-mode *,
+.safe-mode *::before,
+.safe-mode *::after {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+}
+
+:root {
             --primary: #355C7D;
             --primary-light: #4a7a9e;
             --primary-dark: #2a4a66;
@@ -258,8 +270,7 @@
             display: none;
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(10, 15, 20, 0.85);
-            backdrop-filter: blur(8px);
+            background: rgba(10, 15, 20, 0.92);
             z-index: 100;
             align-items: center;
             justify-content: center;
@@ -327,6 +338,7 @@
         .status-responded { border-left: 4px solid var(--accent-coral); }
         .status-call_scheduled { border-left: 4px solid var(--warning); }
         .status-closed { border-left: 4px solid var(--success); }
+        .status-pilot { border-left: 4px solid #22c55e; }
         .status-client { border-left: 4px solid var(--success-muted); }
         .status-lost { border-left: 4px solid var(--danger); }
 
@@ -463,6 +475,7 @@
         .status-badge.responded { background: rgba(192, 108, 132, 0.2); color: var(--accent-coral); }
         .status-badge.call_scheduled { background: rgba(252, 211, 77, 0.15); color: var(--warning); }
         .status-badge.closed { background: rgba(110, 231, 183, 0.15); color: var(--success); }
+        .status-badge.pilot { background: rgba(34, 197, 94, 0.16); color: #22c55e; }
         .status-badge.client { background: rgba(52, 211, 153, 0.15); color: var(--success-muted); }
         .status-badge.lost { background: rgba(248, 113, 113, 0.15); color: var(--danger); }
 
@@ -2108,19 +2121,19 @@
                 <div class="stat-value blue" id="statContacted">0</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Responded</div>
+                <div class="stat-label">Present</div>
                 <div class="stat-value purple" id="statResponded">0</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Calls Scheduled</div>
+                <div class="stat-label">Propose</div>
                 <div class="stat-value yellow" id="statCalls">0</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Closed</div>
+                <div class="stat-label">Close</div>
                 <div class="stat-value green" id="statClosed">0</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Response Rate</div>
+                <div class="stat-label">Progress Rate</div>
                 <div class="stat-value" id="statResponseRate">0%</div>
             </div>
         </div>
@@ -2128,7 +2141,7 @@
         <div class="pipeline">
             <div class="column" data-status="new">
                 <div class="column-header">
-                    <span class="column-title">New</span>
+                    <span class="column-title">Target</span>
                     <span class="column-count" id="countNew">0</span>
                 </div>
                 <div class="column-body" id="colNew"></div>
@@ -2142,35 +2155,42 @@
             </div>
             <div class="column" data-status="responded">
                 <div class="column-header">
-                    <span class="column-title">Responded</span>
+                    <span class="column-title">Present</span>
                     <span class="column-count" id="countResponded">0</span>
                 </div>
                 <div class="column-body" id="colResponded"></div>
             </div>
             <div class="column" data-status="call_scheduled">
                 <div class="column-header">
-                    <span class="column-title">Call Scheduled</span>
+                    <span class="column-title">Propose</span>
                     <span class="column-count" id="countCall">0</span>
                 </div>
                 <div class="column-body" id="colCall"></div>
             </div>
             <div class="column" data-status="closed">
                 <div class="column-header">
-                    <span class="column-title">Closed</span>
+                    <span class="column-title">Close</span>
                     <span class="column-count" id="countClosed">0</span>
                 </div>
                 <div class="column-body" id="colClosed"></div>
             </div>
+            <div class="column" data-status="pilot">
+                <div class="column-header">
+                    <span class="column-title">Delivery</span>
+                    <span class="column-count" id="countPilot">0</span>
+                </div>
+                <div class="column-body" id="colPilot"></div>
+            </div>
             <div class="column" data-status="client">
                 <div class="column-header">
-                    <span class="column-title">Client</span>
+                    <span class="column-title">Report</span>
                     <span class="column-count" id="countClient">0</span>
                 </div>
                 <div class="column-body" id="colClient"></div>
             </div>
             <div class="column" data-status="lost">
                 <div class="column-header">
-                    <span class="column-title">Lost</span>
+                    <span class="column-title">Recontact</span>
                     <span class="column-count" id="countLost">0</span>
                 </div>
                 <div class="column-body" id="colLost"></div>
@@ -2184,6 +2204,7 @@
                         <th>Name</th>
                         <th>Company</th>
                         <th>Status</th>
+                        <th>Move</th>
                         <th>Follow-up</th>
                         <th>Email</th>
                     </tr>
@@ -2217,13 +2238,14 @@
                 <div class="form-group">
                     <label>Status</label>
                     <select id="prospectStatus">
-                        <option value="new">New</option>
+                        <option value="new">Target</option>
                         <option value="contacted">Contacted</option>
-                        <option value="responded">Responded</option>
-                        <option value="call_scheduled">Call Scheduled</option>
-                        <option value="closed">Closed</option>
-                        <option value="client">Client</option>
-                        <option value="lost">Lost</option>
+                        <option value="responded">Present</option>
+                        <option value="call_scheduled">Propose</option>
+                        <option value="closed">Close</option>
+                        <option value="pilot">Delivery</option>
+                        <option value="client">Report</option>
+                        <option value="lost">Recontact</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -2237,9 +2259,10 @@
                 <div class="calls-section" id="callsSection" style="display: none;">
                     <div class="calls-section-header">
                         <span class="calls-section-title">Call History</span>
+                        <button type="button" class="btn btn-secondary" id="loadCallsBtn" onclick="loadCallsForCurrentProspect()">Load call history</button>
                     </div>
                     <div class="calls-list" id="callsList">
-                        <!-- Rendered by JS -->
+                        <div class="calls-empty">Call history loads on demand.</div>
                     </div>
                 </div>
                 <div class="form-actions">
@@ -2252,10 +2275,27 @@
     </div>
 
     <script>
+        const SAFE_MODE = true;
+        const SPEED_MODE = true;
+
         let prospects = [];
         let draggedProspectId = null;
         let currentView = 'pipeline';
         let currentDayView = 'today'; // 'today' or 'tomorrow'
+        let currentModalProspectId = null;
+
+        if (SAFE_MODE) {
+            document.documentElement.classList.add('safe-mode');
+        }
+
+        if (SPEED_MODE) {
+            window.addEventListener('DOMContentLoaded', () => {
+                const historyBtn = document.querySelector('.history-btn');
+                const unmatchedBtn = document.getElementById('unmatchedCallsBtn');
+                if (historyBtn) historyBtn.style.display = 'none';
+                if (unmatchedBtn) unmatchedBtn.style.display = 'none';
+            });
+        }
 
         const statusColumns = {
             new: 'colNew',
@@ -2263,6 +2303,7 @@
             responded: 'colResponded',
             call_scheduled: 'colCall',
             closed: 'colClosed',
+            pilot: 'colPilot',
             client: 'colClient',
             lost: 'colLost'
         };
@@ -2272,17 +2313,19 @@
             contacted: 'responded',
             responded: 'call_scheduled',
             call_scheduled: 'closed',
-            closed: 'client'
+            closed: 'pilot',
+            pilot: 'client'
         };
 
         const statusLabels = {
-            new: 'New',
+            new: 'Target',
             contacted: 'Contacted',
-            responded: 'Responded',
-            call_scheduled: 'Call Scheduled',
-            closed: 'Closed',
-            client: 'Client',
-            lost: 'Lost'
+            responded: 'Present',
+            call_scheduled: 'Propose',
+            closed: 'Close',
+            pilot: 'Delivery',
+            client: 'Report',
+            lost: 'Recontact'
         };
 
         const PROSPECT_FIELDS = 'id,name,company,email,status,next_followup,updated_at';
@@ -2393,6 +2436,12 @@
         }
 
         function renderReadings() {
+            if (SPEED_MODE) {
+                const indicator = document.getElementById('readingsIndicator');
+                if (indicator) indicator.style.display = 'none';
+                return;
+            }
+
             const week = getCurrentReadingWeek();
             const weekData = WEEKLY_READINGS[week];
             const completed = getReadingsCompleted()[week] || {};
@@ -2466,6 +2515,7 @@
 
         // Sync daily planning to backend for email summaries
         async function syncDailyPlanning() {
+            if (SPEED_MODE) return;
             try {
                 // Always sync both today and tomorrow to Supabase
                 const todayOneThing = localStorage.getItem('oneThing') || '';
@@ -2543,6 +2593,7 @@
         }
 
         async function syncDailyPlanningFromServer() {
+            if (SPEED_MODE) return;
             try {
                 const todayIso = new Date().toISOString().split('T')[0];
                 const tomorrowDate = new Date();
@@ -2841,7 +2892,7 @@
         function renderListView() {
             const tbody = document.getElementById('listBody');
             if (prospects.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="table-empty">No prospects yet. Add your first one!</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="table-empty">No prospects yet. Add your first one!</td></tr>';
                 return;
             }
             tbody.innerHTML = prospects.map(p => {
@@ -2858,6 +2909,11 @@
                         <td><strong>${escapeHtml(p.name)}</strong></td>
                         <td>${escapeHtml(p.company) || '-'}</td>
                         <td><span class="status-badge ${p.status}">${statusLabels[p.status]}</span></td>
+                        <td>
+                            <select onchange="event.stopPropagation(); moveToStatus(${p.id}, this.value)" onclick="event.stopPropagation()" style="padding:6px 8px; border-radius:8px; background:#1f2937; color:#fff; border:1px solid #374151;">
+                                ${Object.entries(statusLabels).map(([key,label]) => `<option value="${key}" ${p.status === key ? 'selected' : ''}>${label}</option>`).join('')}
+                            </select>
+                        </td>
                         <td>${followupText}</td>
                         <td>${escapeHtml(p.email) || '-'}</td>
                     </tr>
@@ -2888,6 +2944,8 @@
                 (statusCounts.responded || 0) +
                 (statusCounts.call_scheduled || 0) +
                 (statusCounts.closed || 0) +
+                (statusCounts.pilot || 0) +
+                (statusCounts.client || 0) +
                 (statusCounts.lost || 0)
             );
             const contactedTotal = total - (statusCounts.new || 0);
@@ -2916,6 +2974,7 @@
             document.getElementById('countResponded').textContent = stats.by_status.responded || 0;
             document.getElementById('countCall').textContent = stats.by_status.call_scheduled || 0;
             document.getElementById('countClosed').textContent = stats.by_status.closed || 0;
+            document.getElementById('countPilot').textContent = stats.by_status.pilot || 0;
             document.getElementById('countClient').textContent = stats.by_status.client || 0;
             document.getElementById('countLost').textContent = stats.by_status.lost || 0;
 
@@ -2961,18 +3020,20 @@
         function createProspectCard(prospect) {
             const card = document.createElement('div');
             card.className = `prospect-card status-${prospect.status}`;
-            card.draggable = true;
+            card.draggable = !SAFE_MODE;
             card.dataset.id = prospect.id;
 
-            card.ondragstart = (e) => {
-                draggedProspectId = prospect.id;
-                card.classList.add('dragging');
-                e.dataTransfer.effectAllowed = 'move';
-            };
-            card.ondragend = () => {
-                card.classList.remove('dragging');
-                draggedProspectId = null;
-            };
+            if (!SAFE_MODE) {
+                card.ondragstart = (e) => {
+                    draggedProspectId = prospect.id;
+                    card.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                };
+                card.ondragend = () => {
+                    card.classList.remove('dragging');
+                    draggedProspectId = null;
+                };
+            }
             card.onclick = (e) => {
                 if (!e.target.classList.contains('quick-btn')) editProspect(prospect);
             };
@@ -3013,7 +3074,7 @@
         }
 
         async function moveToStatus(id, status) {
-            await fetch(`/api/prospect?id=${id}`, {
+            await fetch(`/api/prospects/${id}/status`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status })
@@ -3026,10 +3087,14 @@
             const form = document.getElementById('prospectForm');
             const title = document.getElementById('modalTitle');
             const deleteBtn = document.getElementById('deleteBtn');
+            const callsSection = document.getElementById('callsSection');
+            const callsList = document.getElementById('callsList');
+            const loadCallsBtn = document.getElementById('loadCallsBtn');
 
             form.reset();
 
             if (prospect) {
+                currentModalProspectId = prospect.id;
                 title.textContent = 'Edit Prospect';
                 deleteBtn.style.display = 'block';
                 document.getElementById('prospectId').value = prospect.id;
@@ -3040,17 +3105,27 @@
                 document.getElementById('prospectStatus').value = prospect.status || 'new';
                 document.getElementById('prospectFollowup').value = prospect.next_followup || '';
                 document.getElementById('prospectNotes').value = prospect.notes || '';
+
+                if (SAFE_MODE) {
+                    callsSection.style.display = 'none';
+                } else {
+                    callsSection.style.display = 'block';
+                    callsList.innerHTML = '<div class="calls-empty">Call history loads on demand.</div>';
+                    loadCallsBtn.disabled = false;
+                    loadCallsBtn.textContent = 'Load call history';
+                }
             } else {
+                currentModalProspectId = null;
                 title.textContent = 'Add Prospect';
                 deleteBtn.style.display = 'none';
                 document.getElementById('prospectId').value = '';
-                // Hide calls section for new prospects
-                document.getElementById('callsSection').style.display = 'none';
+                callsSection.style.display = 'none';
             }
             modal.classList.add('active');
         }
 
         function closeModal() {
+            currentModalProspectId = null;
             document.getElementById('modal').classList.remove('active');
         }
 
@@ -3071,15 +3146,13 @@
                 }
             }
             openModal(prospect);
-            // Load call history for this prospect
-            loadProspectCalls(prospect.id);
         }
 
         async function deleteProspect() {
             const id = document.getElementById('prospectId').value;
             if (!id) return;
             if (confirm('Delete this prospect?')) {
-                await fetch(`/api/prospect?id=${id}`, { method: 'DELETE' });
+                await fetch(`/api/prospects/${id}`, { method: 'DELETE' });
                 closeModal();
                 loadProspects();
             }
@@ -3099,7 +3172,7 @@
             };
 
             if (id) {
-                await fetch(`/api/prospect?id=${id}`, {
+                await fetch(`/api/prospects/${id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
@@ -3124,6 +3197,8 @@
         };
 
         function setupDropZones() {
+            if (SAFE_MODE) return;
+
             document.querySelectorAll('.column').forEach(column => {
                 const status = column.dataset.status;
                 const body = column.querySelector('.column-body');
@@ -3148,6 +3223,9 @@
         }
 
         setupDropZones();
+        if (SAFE_MODE) {
+            setView('list');
+        }
         loadProspects();
         renderReadings();
 
@@ -3198,6 +3276,7 @@
         let historyLoading = false;
 
         function openHistory() {
+            if (SPEED_MODE) return;
             document.getElementById('historyPanel').classList.add('active');
             document.getElementById('historyOverlay').classList.add('active');
             document.body.style.overflow = 'hidden';
@@ -3442,6 +3521,22 @@
             return text.slice(0, maxLength).trim() + '…';
         }
 
+        async function loadCallsForCurrentProspect() {
+            if (!currentModalProspectId) return;
+            const loadCallsBtn = document.getElementById('loadCallsBtn');
+            const callsList = document.getElementById('callsList');
+            if (loadCallsBtn) {
+                loadCallsBtn.disabled = true;
+                loadCallsBtn.textContent = 'Loading...';
+            }
+            callsList.innerHTML = '<div class="calls-empty">Loading call history…</div>';
+            await loadProspectCalls(currentModalProspectId);
+            if (loadCallsBtn) {
+                loadCallsBtn.textContent = 'Reload call history';
+                loadCallsBtn.disabled = false;
+            }
+        }
+
         async function loadProspectCalls(prospectId) {
             const callsSection = document.getElementById('callsSection');
             const callsList = document.getElementById('callsList');
@@ -3552,6 +3647,11 @@
 
         // Unmatched Calls
         async function checkUnmatchedCalls() {
+            if (SPEED_MODE) {
+                const btn = document.getElementById('unmatchedCallsBtn');
+                if (btn) btn.classList.remove('visible');
+                return;
+            }
             try {
                 const res = await fetch('/api/fathom-calls?unmatched=true&limit=100');
                 if (!res.ok) return;

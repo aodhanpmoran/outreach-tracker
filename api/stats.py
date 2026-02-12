@@ -32,6 +32,8 @@ class handler(BaseHTTPRequestHandler):
                 status_counts.get('responded', 0) +
                 status_counts.get('call_scheduled', 0) +
                 status_counts.get('closed', 0) +
+                status_counts.get('pilot', 0) +
+                status_counts.get('client', 0) +
                 status_counts.get('lost', 0)
             )
             contacted_total = total - status_counts.get('new', 0)
