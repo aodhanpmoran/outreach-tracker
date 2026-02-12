@@ -3073,12 +3073,57 @@
             return div.innerHTML;
         }
 
-        async function moveToStatus(id, status) {
-            await fetch(`/api/prospects/${id}/status`, {
+        function isValidApiResponse(res) {
+            if (!res || !res.ok) return false;
+            const contentType = (res.headers.get('content-type') || '').toLowerCase();
+            return contentType.includes('application/json');
+        }
+
+        async function updateProspectStatus(id, status) {
+            // Support both local Flask (/api/prospects/:id/status) and serverless (/api/prospect?id=...)
+            let res = await fetch(`/api/prospects/${id}/status`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status })
             });
+            if (!isValidApiResponse(res)) {
+                res = await fetch(`/api/prospect?id=${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status })
+                });
+            }
+            return res;
+        }
+
+        async function deleteProspectById(id) {
+            // Support both local Flask and serverless endpoint shapes
+            let res = await fetch(`/api/prospects/${id}`, { method: 'DELETE' });
+            if (!isValidApiResponse(res)) {
+                res = await fetch(`/api/prospect?id=${id}`, { method: 'DELETE' });
+            }
+            return res;
+        }
+
+        async function saveProspectById(id, data) {
+            // Support both local Flask and serverless endpoint shapes
+            let res = await fetch(`/api/prospects/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (!isValidApiResponse(res)) {
+                res = await fetch(`/api/prospect?id=${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+            }
+            return res;
+        }
+
+        async function moveToStatus(id, status) {
+            await updateProspectStatus(id, status);
             loadProspects();
         }
 
@@ -3152,7 +3197,7 @@
             const id = document.getElementById('prospectId').value;
             if (!id) return;
             if (confirm('Delete this prospect?')) {
-                await fetch(`/api/prospects/${id}`, { method: 'DELETE' });
+                await deleteProspectById(id);
                 closeModal();
                 loadProspects();
             }
@@ -3172,11 +3217,7 @@
             };
 
             if (id) {
-                await fetch(`/api/prospects/${id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
+                await saveProspectById(id, data);
             } else {
                 await fetch('/api/prospects', {
                     method: 'POST',
