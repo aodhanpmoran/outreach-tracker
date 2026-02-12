@@ -3161,20 +3161,15 @@
                 document.getElementById(colId).innerHTML = '';
             });
 
-            prospects
-                .filter(p => isPrimaryPipelineProspect(p))
-                .forEach(p => {
-                    const validity = validateActiveDeal(p);
-                    if (!validity.valid) return;
-                    const col = document.getElementById(statusColumns[p.status]);
-                    if (col) col.appendChild(createProspectCard(p));
-                });
+            prospects.forEach(p => {
+                const col = document.getElementById(statusColumns[p.status]);
+                if (col) col.appendChild(createProspectCard(p));
+            });
 
             Object.entries(statusColumns).forEach(([status, colId]) => {
                 const col = document.getElementById(colId);
                 if (col.children.length === 0) {
-                    const emptyText = PRIMARY_PIPELINE_STATUSES.includes(status) ? 'No active deals' : 'Excluded from active view';
-                    col.innerHTML = `<div class="empty-state"><p>${emptyText}</p></div>`;
+                    col.innerHTML = '<div class="empty-state"><p>No prospects</p></div>';
                 }
             });
         }
