@@ -316,38 +316,63 @@ def extract_inferred_reply_count(text: str, target_email: str) -> int:
 
 
 def chain_summary(subject: str, body: str, target_email: str, full_name: str, reason_codes: list[str], exchange_estimate: int, confidence_bucket: str) -> str:
+    # Harsh note rules: only keep business signal from the latest visible turn.
     text = (body or "").replace("\r", "\n")
-    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    raw_lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
 
-    business_lines = []
-    for ln in lines:
+    # Use only pre-quote/latest segment (before historical quote headers).
+    latest_segment = []
+    for ln in raw_lines:
         low = ln.lower()
-        if low.startswith(("on ", ">", "from:", "to:", "subject:", "sent:", "dear ", "hi ", "thanks", "thank you")):
-            continue
-        if any(k in low for k in [
-            "offer", "proposal", "audience", "newsletter", "email", "lead", "revenue",
-            "strategy", "funnel", "collabor", "partnership", "call", "meeting", "next step",
-        ]):
-            business_lines.append(ln)
+        if low.startswith(("on ", "from:", "to:", "subject:", "sent:")):
+            break
+        if ln.startswith(">"):
+            break
+        latest_segment.append(ln)
 
-    if not business_lines:
-        for ln in lines:
+    if not latest_segment:
+        latest_segment = raw_lines[:8]
+
+    # Business-topic extraction from subject.
+    topic = subject or "(no subject)"
+    topic = re.sub(r"^(re|fw|fwd):\s*", "", topic, flags=re.IGNORECASE).strip()
+
+    business_kws = [
+        "proposal", "offer", "audience", "strategy", "funnel", "revenue", "lead",
+        "partnership", "collaboration", "call", "meeting", "next step", "scope",
+        "automation", "conversion", "launch", "distribution", "donor"
+    ]
+
+    # Pick strongest business line from latest segment.
+    best = ""
+    for ln in latest_segment:
+        low = ln.lower()
+        if low.startswith(("dear ", "hi ", "thanks", "thank you", "best", "regards")):
+            continue
+        if any(k in low for k in business_kws):
+            best = ln
+            break
+
+    if not best:
+        for ln in latest_segment:
             low = ln.lower()
-            if low.startswith(("on ", ">", "from:", "to:", "subject:", "sent:")):
+            if low.startswith(("dear ", "hi ", "thanks", "thank you", "best", "regards")):
                 continue
-            business_lines.append(ln)
-            if len(business_lines) >= 3:
+            if len(ln) > 18:
+                best = ln
                 break
 
+    if not best:
+        best = "No strong business line detected in latest turn."
+
     who = full_name or target_email
-    bullets = [
-        f"- Context: {subject[:110]}",
-        f"- Contact: {who}; exchange_estimate={exchange_estimate}; confidence={confidence_bucket}",
-        f"- Reason codes: {', '.join(reason_codes[:6]) if reason_codes else 'none'}",
-    ]
-    if business_lines:
-        bullets.append(f"- Business focus: {business_lines[0][:170]}")
-    return "\n".join(bullets[:4])
+    signal_text = ", ".join(reason_codes[:4]) if reason_codes else "basic engagement signals"
+    return (
+        f"Most recent email thread with {who} is about {topic[:90]}. "
+        f"The main business point is: {best[:180]}. "
+        f"Current engagement appears {confidence_bucket} confidence with roughly {exchange_estimate} exchanges, "
+        f"based on {signal_text}."
+    )
 
 
 def classify_stage1(email: str, text: str, existing_clients: set[str], cfg: LearningConfig) -> tuple[Optional[str], list[str]]:
@@ -451,12 +476,12 @@ def merged_audit_notes(existing_notes: Optional[str], new_note: str) -> str:
 
 
 def build_audit_note(c: Candidate) -> str:
-    return (
-        f"{AUDIT_NOTE_PREFIX} label={c.label}; reason={c.reason}; reason_codes={','.join(c.reason_codes)}; "
-        f"exchange_estimate={c.exchange_estimate}; meeting_count={c.meeting_count}; "
-        f"last_meeting_date={c.last_meeting_date}; cross_signal={str(c.cross_signal).lower()}; "
-        f"confidence_bucket={c.confidence_bucket}; subject={c.subject}; date={c.latest_date}; summary={c.summary}"
-    )
+    # Learning rule: notes must be plain-English and minimal (no metadata dump).
+    # Keep only the first sentence of the summary.
+    first_sentence = (c.summary or "").split(".")[0].strip()
+    if first_sentence:
+        return first_sentence + "."
+    return "No clear business summary available from the most recent email thread."
 
 
 def upsert_contacted_sqlite(db_path: str, c: Candidate):
